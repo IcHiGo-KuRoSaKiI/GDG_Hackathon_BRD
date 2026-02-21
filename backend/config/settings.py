@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # Firebase Configuration
-    google_application_credentials: str
+    google_application_credentials: str = ""  # Empty = use ADC (Cloud Run)
     google_cloud_project: str
     storage_bucket: str
 

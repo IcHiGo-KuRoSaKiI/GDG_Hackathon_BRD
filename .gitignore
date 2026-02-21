@@ -133,6 +133,13 @@ docker-compose.override.yml
 # Cloud Run
 .gcloudignore
 
+# Terraform
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.backup
+infra/terraform.tfvars
+infra/.terraform.lock.hcl
+
 # ==========================================
 # IDE / EDITOR
 # ==========================================
