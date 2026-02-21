@@ -40,8 +40,8 @@ class TopicRelevance(BaseModel):
     )
 
     class Config:
-        # Allow validation of float values in dict
-        extra = "forbid"
+        # Allow old schema fields for backward compatibility
+        extra = "allow"
 
 
 class ContentIndicators(BaseModel):
@@ -54,6 +54,10 @@ class ContentIndicators(BaseModel):
         default_factory=dict,
         description="Content type -> presence indicator (true/false)"
     )
+
+    class Config:
+        # Allow old schema fields for backward compatibility
+        extra = "allow"
 
 
 class KeyEntities(BaseModel):
