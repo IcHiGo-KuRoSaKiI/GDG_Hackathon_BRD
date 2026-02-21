@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     gemini_temperature: float = 0.2
     gemini_max_retries: int = 3
 
+    # Gemini Token Limits (generous but safe for free tier)
+    # Context: 1M total, Input: 131k max, Output: 64k max (AI Studio: 8k)
+    gemini_max_input_tokens: int = 100000  # Under free tier 125k limit
+    gemini_max_output_tokens: int = 8192   # Safe for all platforms
+
     # JWT Authentication Configuration
     jwt_secret_key: str = "your-secret-key-change-in-production"  # Override in .env
     jwt_algorithm: str = "HS256"

@@ -68,19 +68,41 @@ class GeminiService:
                 response_model=MetadataGenerationResponse
             )
 
+            # Convert stakeholder sentiment dict to list of StakeholderSentiment objects
+            stakeholder_sentiments = []
+            stakeholder_dict = result.sentiment.get("stakeholder_sentiment", {})
+            for name, data in stakeholder_dict.items():
+                # Handle both string and dict formats from Gemini
+                if isinstance(data, str):
+                    # Simple string sentiment
+                    stakeholder_sentiments.append(StakeholderSentiment(
+                        name=name,
+                        sentiment=data,
+                        concerns=[],
+                        confidence=0.7
+                    ))
+                elif isinstance(data, dict):
+                    # Detailed sentiment object
+                    stakeholder_sentiments.append(StakeholderSentiment(
+                        name=name,
+                        sentiment=data.get("sentiment", "neutral"),
+                        concerns=data.get("concerns", []),
+                        confidence=data.get("confidence", 0.5)
+                    ))
+                else:
+                    logger.warning(f"Unexpected sentiment data type for {name}: {type(data)}")
+
             # Convert to AIMetadata model
             return AIMetadata(
                 document_type="",
                 confidence=0.0,
                 summary=result.summary,
+                key_points=[],  # Not in current response
                 tags=result.tags,
-                topics=TopicRelevance(**result.topics),
-                contains=ContentIndicators(**result.contains),
+                topic_relevance=TopicRelevance(**result.topics),
+                content_indicators=ContentIndicators(**result.contains),
                 key_entities=KeyEntities(**result.key_entities),
-                sentiment=StakeholderSentiment(
-                    overall=result.sentiment.get("overall", "neutral"),
-                    stakeholder_sentiment=result.sentiment.get("stakeholder_sentiment", {})
-                )
+                stakeholder_sentiments=stakeholder_sentiments
             )
 
         except Exception as e:

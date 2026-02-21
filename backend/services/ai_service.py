@@ -63,26 +63,49 @@ class AIService:
             logger.info(f"🤖 Calling Gemini {model} for {response_model.__name__}...")
             logger.debug(f"Prompt length: {len(prompt)} chars")
 
-            # Run sync Gemini SDK call in thread pool to avoid blocking event loop
-            response = await asyncio.to_thread(
-                self.genai_client.models.generate_content,
-                model=model,
-                contents=prompt,
-                config={
-                    "response_mime_type": "application/json",
-                    "response_json_schema": response_model.model_json_schema(),
-                    "temperature": settings.gemini_temperature,
-                }
+            # Run sync Gemini SDK call in thread pool with timeout
+            response = await asyncio.wait_for(
+                asyncio.to_thread(
+                    self.genai_client.models.generate_content,
+                    model=model,
+                    contents=prompt,
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_json_schema": response_model.model_json_schema(),
+                        "temperature": settings.gemini_temperature,
+                        "max_output_tokens": settings.gemini_max_output_tokens,
+                    }
+                ),
+                timeout=60.0  # 60 second timeout
             )
 
             logger.info(f"✅ Gemini response received for {response_model.__name__}")
-            logger.debug(f"Response length: {len(response.text)} chars")
+
+            # Extract text from response (handle different response structures)
+            response_text = None
+            if hasattr(response, 'text') and response.text:
+                response_text = response.text
+            elif hasattr(response, 'candidates') and response.candidates:
+                # Try to get content from candidates
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                    response_text = candidate.content.parts[0].text
+
+            if not response_text:
+                logger.error(f"❌ Empty response from Gemini for {response_model.__name__}")
+                logger.debug(f"Response object: {response}")
+                raise Exception("Empty response from Gemini API")
+
+            logger.debug(f"Response length: {len(response_text)} chars")
 
             # Parse and validate with Pydantic
-            result = response_model.model_validate_json(response.text)
+            result = response_model.model_validate_json(response_text)
             logger.info(f"✅ Validated {response_model.__name__} successfully")
             return result
 
+        except asyncio.TimeoutError:
+            logger.error(f"❌ Gemini API timeout after 60s for {response_model.__name__}")
+            raise Exception(f"AI generation timeout after 60 seconds")
         except Exception as e:
             logger.error(f"❌ Gemini SDK generation failed for {response_model.__name__}: {e}", exc_info=True)
             raise Exception(f"AI generation failed: {str(e)}")
