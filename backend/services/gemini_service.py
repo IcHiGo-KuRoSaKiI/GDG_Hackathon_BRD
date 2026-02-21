@@ -93,8 +93,9 @@ class GeminiService:
                     logger.warning(f"Unexpected sentiment data type for {name}: {type(data)}")
 
             # Convert to AIMetadata model
+            # Note: document_type will be updated from classification in document_service
             return AIMetadata(
-                document_type="",
+                document_type="other",  # Temp value, will be overwritten
                 confidence=0.0,
                 summary=result.summary,
                 key_points=[],  # Not in current response

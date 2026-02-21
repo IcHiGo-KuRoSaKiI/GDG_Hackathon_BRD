@@ -76,10 +76,17 @@ class AIService:
                         "max_output_tokens": settings.gemini_max_output_tokens,
                     }
                 ),
-                timeout=60.0  # 60 second timeout
+                timeout=120.0  # 120 second timeout for complex metadata
             )
 
             logger.info(f"✅ Gemini response received for {response_model.__name__}")
+
+            # Check finish_reason for MAX_TOKENS bug
+            if hasattr(response, 'candidates') and response.candidates:
+                finish_reason = getattr(response.candidates[0], 'finish_reason', None)
+                if finish_reason == 'MAX_TOKENS':
+                    logger.error(f"❌ Response hit MAX_TOKENS limit for {response_model.__name__}")
+                    raise Exception(f"Response exceeded max_output_tokens ({settings.gemini_max_output_tokens}). Try simplifying the prompt or increasing token limit.")
 
             # Extract text from response (handle different response structures)
             response_text = None
