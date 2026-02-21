@@ -113,21 +113,28 @@ class BRDAgentService:
         all_docs = await self.tools.list_project_documents(project_id)
 
         # Filter for relevant documents
-        # Documents are relevant if:
-        # 1. They have requirements (functional or non-functional)
-        # 2. They have decisions
-        # 3. They have stakeholder feedback
-        # 4. They have timeline information
-        relevant_docs = [
-            doc for doc in all_docs
-            if (
-                doc.get("contains", {}).get("functional_requirements", False) or
-                doc.get("contains", {}).get("non_functional_requirements", False) or
-                doc.get("contains", {}).get("decisions", False) or
-                doc.get("contains", {}).get("stakeholder_feedback", False) or
-                doc.get("contains", {}).get("timeline", False)
-            )
-        ]
+        # Documents are relevant if they have AI metadata with content indicators
+        # This is domain-agnostic - works for any type of document
+        relevant_docs = []
+        for doc in all_docs:
+            # Check if document has AI metadata
+            ai_metadata = doc.get("ai_metadata")
+            if not ai_metadata:
+                logger.debug(f"Doc {doc.get('filename')} has no ai_metadata, skipping")
+                continue
+
+            # Check if it has any content indicators that are True
+            content_indicators = ai_metadata.get("content_indicators", {})
+            indicators = content_indicators.get("indicators", {})
+
+            logger.debug(f"Doc {doc.get('filename')} indicators: {indicators}")
+
+            # Document is relevant if it has ANY True indicator
+            if any(indicators.values()):
+                relevant_docs.append(doc)
+                logger.debug(f"Doc {doc.get('filename')} marked as RELEVANT")
+            else:
+                logger.debug(f"Doc {doc.get('filename')} has no True indicators, skipping")
 
         logger.info(f"Found {len(relevant_docs)} relevant documents out of {len(all_docs)} total")
 
@@ -279,29 +286,65 @@ class BRDAgentService:
         Returns:
             Dict of section_name -> BRDSection
         """
-        # Prepare context for section generation
-        generation_context = {
-            "requirements": requirements,
-            "conflicts": [c.model_dump() for c in conflicts],
-            "sentiment": sentiment.model_dump(),
-            "documents": context["relevant_documents"]
+        # Prepare base context (common across all sections)
+        base_context = {
+            "context": json.dumps({
+                "project_id": context["project_id"],
+                "documents": [
+                    {
+                        "filename": doc["filename"],
+                        "type": doc.get("ai_metadata", {}).get("document_type", "unknown")
+                    }
+                    for doc in context["relevant_documents"]
+                ]
+            }, indent=2),
+            "requirements_summary": json.dumps(requirements[:20], indent=2),  # First 20 for summary
+            "conflicts_summary": json.dumps([c.model_dump() for c in conflicts], indent=2),
+            "sentiment_summary": json.dumps(sentiment.model_dump(), indent=2)
         }
 
-        # Generate all 8 sections in parallel
-        section_names = [
-            "executive_summary",
-            "business_objectives",
-            "stakeholders",
-            "functional_requirements",
-            "non_functional_requirements",
-            "assumptions",
-            "success_metrics",
-            "timeline"
+        # Prepare section-specific contexts
+        functional_reqs = [r for r in requirements if r.get("type") == "functional"]
+        non_functional_reqs = [r for r in requirements if r.get("type") == "non_functional"]
+        stakeholders_list = list(sentiment.stakeholder_breakdown.keys())
+        dates_extracted = [
+            entity for doc in context["relevant_documents"]
+            for entity in doc.get("ai_metadata", {}).get("key_entities", {}).get("dates", [])
         ]
 
+        section_contexts = {
+            "executive_summary": base_context,
+            "business_objectives": {**base_context},
+            "stakeholders": {
+                **base_context,
+                "stakeholders_list": json.dumps(stakeholders_list)
+            },
+            "functional_requirements": {
+                **base_context,
+                "functional_requirements": json.dumps(functional_reqs, indent=2)
+            },
+            "non_functional_requirements": {
+                **base_context,
+                "non_functional_requirements": json.dumps(non_functional_reqs, indent=2)
+            },
+            "assumptions": {
+                **base_context,
+                "all_requirements": json.dumps(requirements, indent=2)
+            },
+            "success_metrics": {
+                **base_context,
+                "business_objectives": base_context["requirements_summary"]  # Use requirements as proxy
+            },
+            "timeline": {
+                **base_context,
+                "dates_extracted": json.dumps(dates_extracted, indent=2)
+            }
+        }
+
+        # Generate all 8 sections in parallel with their specific contexts
         generation_tasks = [
-            self._generate_single_section(name, generation_context)
-            for name in section_names
+            self._generate_single_section(name, section_contexts[name])
+            for name in section_contexts.keys()
         ]
 
         section_results = await asyncio.gather(*generation_tasks)
@@ -309,7 +352,7 @@ class BRDAgentService:
         # Convert to dict
         sections = {
             name: section
-            for name, section in zip(section_names, section_results)
+            for name, section in zip(section_contexts.keys(), section_results)
         }
 
         return sections
