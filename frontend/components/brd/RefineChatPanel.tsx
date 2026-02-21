@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatMessage } from '@/hooks/useRefineText'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const MIN_WIDTH = 360
 const MAX_WIDTH = 800
@@ -48,8 +49,9 @@ export function RefineChatPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const isDragging = useRef(false)
+  const isMobile = useIsMobile()
 
-  // Resize drag handler
+  // Resize drag handler (desktop only)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     isDragging.current = true
@@ -58,7 +60,6 @@ export function RefineChatPanel({
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging.current) return
-      // Dragging left = wider panel (startX - e.clientX is positive)
       const delta = startX - e.clientX
       const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta))
       setWidth(newWidth)
@@ -111,19 +112,26 @@ export function RefineChatPanel({
 
   return (
     <div
-      className="shrink-0 border-l bg-background flex flex-col h-full relative"
-      style={{ width: `${width}px` }}
+      className={
+        isMobile
+          ? 'fixed inset-0 z-50 bg-background flex flex-col'
+          : 'shrink-0 border-l bg-background flex flex-col h-full relative'
+      }
+      style={isMobile ? undefined : { width: `${width}px` }}
     >
-      {/* Resize handle */}
-      <div
-        onMouseDown={handleMouseDown}
-        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20 group hover:bg-primary/20 active:bg-primary/30 transition-colors"
-        title="Drag to resize"
-      >
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <GripVertical className="h-4 w-4 text-muted-foreground" />
+      {/* Resize handle — desktop only */}
+      {!isMobile && (
+        <div
+          onMouseDown={handleMouseDown}
+          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20 group hover:bg-primary/20 active:bg-primary/30 transition-colors"
+          title="Drag to resize"
+        >
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
         </div>
-      </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -316,7 +324,7 @@ export function RefineChatPanel({
           </Button>
         </div>
         <p className="text-[10px] text-muted-foreground mt-1.5">
-          Enter to send, Shift+Enter for new line, Esc to close
+          Enter to send{isMobile ? '' : ', Shift+Enter for new line'}, Esc to close
         </p>
       </div>
     </div>

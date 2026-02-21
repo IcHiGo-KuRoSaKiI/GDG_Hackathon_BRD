@@ -4,11 +4,17 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { FileText, LayoutDashboard, Settings, LogOut, Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useAuthStore } from '@/lib/store/authStore'
 import { useThemeStore } from '@/lib/store/themeStore'
 import { cn } from '@/lib/utils/cn'
 
-export function Sidebar() {
+interface SidebarProps {
+  mobileOpen?: boolean
+  onMobileOpenChange?: (open: boolean) => void
+}
+
+function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuthStore()
@@ -25,10 +31,10 @@ export function Sidebar() {
   ]
 
   return (
-    <aside className="w-64 h-screen bg-card border-r border-border flex flex-col">
+    <>
       {/* Logo */}
       <div className="p-6 border-b border-border">
-        <Link href="/dashboard" className="flex items-center space-x-2">
+        <Link href="/dashboard" className="flex items-center space-x-2" onClick={onNavigate}>
           <FileText className="h-6 w-6 text-primary" />
           <span className="text-lg font-bold gradient-text">BRD Generator</span>
         </Link>
@@ -42,6 +48,7 @@ export function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
+              onClick={onNavigate}
               className={cn(
                 'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
                 isActive
@@ -87,6 +94,25 @@ export function Sidebar() {
           Logout
         </Button>
       </div>
-    </aside>
+    </>
+  )
+}
+
+export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
+  return (
+    <>
+      {/* Desktop sidebar — hidden on mobile */}
+      <aside className="hidden md:flex w-64 h-screen bg-card border-r border-border flex-col shrink-0">
+        <SidebarContent />
+      </aside>
+
+      {/* Mobile sidebar — Sheet drawer */}
+      <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
+        <SheetContent side="left" className="w-64 p-0 flex flex-col">
+          <SheetTitle className="sr-only">Navigation</SheetTitle>
+          <SidebarContent onNavigate={() => onMobileOpenChange?.(false)} />
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }

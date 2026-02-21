@@ -46,7 +46,7 @@ export function BRDSectionTabs({
           <TabsTrigger
             key={section.key}
             value={section.key}
-            className="whitespace-nowrap"
+            className="whitespace-nowrap text-xs md:text-sm"
           >
             {section.label}
           </TabsTrigger>

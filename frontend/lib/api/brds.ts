@@ -29,6 +29,22 @@ export interface SentimentAnalysis {
   by_topic?: Record<string, string>
 }
 
+export interface TokenUsage {
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  estimated_cost_usd: number
+}
+
+export interface GenerationMetadata {
+  pipeline?: string
+  model?: string
+  sections_generated?: number
+  iterations?: number
+  token_usage?: TokenUsage
+  sources_used?: string[]
+}
+
 export interface BRD {
   id: string
   project_id: string
@@ -50,6 +66,7 @@ export interface BRD {
   }
   conflicts?: Conflict[]
   sentiment?: SentimentAnalysis
+  generation_metadata?: GenerationMetadata
   created_at: string
   updated_at: string
   processing_stage?: string
@@ -155,6 +172,7 @@ function transformBRD(raw: any): BRD {
     sections,
     conflicts: transformConflicts(raw.conflicts),
     sentiment: transformSentiment(raw.sentiment),
+    generation_metadata: raw.generation_metadata,
     created_at: generatedAt,
     updated_at: raw.updated_at ?? generatedAt,
   }

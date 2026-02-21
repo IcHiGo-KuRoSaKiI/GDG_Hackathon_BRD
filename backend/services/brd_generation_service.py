@@ -180,6 +180,7 @@ class BRDGenerationService:
                 "tool_calls": result.get("tool_calls", []),
                 "sources_used": result.get("sources_used", []),
                 "iterations": result.get("iterations", 0),
+                "token_usage": result.get("token_usage", {}),
             },
         )
 
@@ -213,6 +214,8 @@ class BRDGenerationService:
         tool_calls = []
         collected_sections: Dict[str, Dict] = {}
         collected_analysis: Dict[str, Any] = {}
+        total_input_tokens = 0
+        total_output_tokens = 0
         max_iterations = 30
 
         logger.info("Starting agentic BRD generation workflow")
@@ -227,6 +230,12 @@ class BRDGenerationService:
                 self._call_gemini_brd_gen,
                 messages,
             )
+
+            # Accumulate token usage
+            usage = getattr(response, "usage_metadata", None)
+            if usage:
+                total_input_tokens += getattr(usage, "prompt_token_count", 0) or 0
+                total_output_tokens += getattr(usage, "candidates_token_count", 0) or 0
 
             candidate = response.candidates[0]
             finish_reason = getattr(candidate, "finish_reason", None)
@@ -435,12 +444,28 @@ class BRDGenerationService:
         if missing:
             logger.warning(f"Missing sections: {missing}")
 
+        # Estimate cost (Gemini 2.5 Pro pricing: $1.25/1M input, $10/1M output)
+        cost_input = (total_input_tokens / 1_000_000) * 1.25
+        cost_output = (total_output_tokens / 1_000_000) * 10.0
+        estimated_cost = round(cost_input + cost_output, 4)
+
+        logger.info(
+            f"Token usage: {total_input_tokens} input + {total_output_tokens} output "
+            f"= {total_input_tokens + total_output_tokens} total, ~${estimated_cost}"
+        )
+
         return {
             "sections": collected_sections,
             "analysis": collected_analysis,
             "sources_used": list(sources_used),
             "tool_calls": [t for t in tool_calls if t not in VIRTUAL_TOOLS],
             "iterations": min(iteration + 1, max_iterations),
+            "token_usage": {
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+                "total_tokens": total_input_tokens + total_output_tokens,
+                "estimated_cost_usd": estimated_cost,
+            },
         }
 
     def _call_gemini_brd_gen(self, messages: List) -> Any:

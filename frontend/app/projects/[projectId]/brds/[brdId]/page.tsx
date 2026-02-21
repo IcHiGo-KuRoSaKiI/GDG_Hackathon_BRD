@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Download, Loader2, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Cpu, DollarSign, Download, Loader2, MessageSquare, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getBRD, updateBRDSection, updateConflictStatus, BRD, Conflict, ConflictStatus } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
@@ -381,7 +381,7 @@ export default function BRDViewerPage() {
   return (
     <div className="h-screen flex flex-col">
       {/* Fixed header: title bar only */}
-      <div className="px-8 pt-8 pb-4 shrink-0">
+      <div className="px-4 md:px-8 pt-4 md:pt-8 pb-4 shrink-0">
         <Link href={`/projects/${projectId}`}>
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -389,21 +389,45 @@ export default function BRDViewerPage() {
           </Button>
         </Link>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Business Requirements Document</h1>
-            <p className="text-muted-foreground">
-              {brd.created_at && `Generated ${formatRelativeTime(brd.created_at)} • `}
-              {availableSections.length} sections
-            </p>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="text-xl md:text-3xl font-bold mb-2">Business Requirements Document</h1>
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 text-sm text-muted-foreground">
+              <span>
+                {brd.created_at && `Generated ${formatRelativeTime(brd.created_at)} · `}
+                {availableSections.length} sections
+              </span>
+              {brd.generation_metadata?.token_usage && (
+                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-muted/50 rounded-full text-xs font-medium">
+                  <span className="flex items-center gap-1" title="Total tokens used">
+                    <Zap className="h-3 w-3" />
+                    {(brd.generation_metadata.token_usage.total_tokens / 1000).toFixed(0)}k tokens
+                  </span>
+                  <span className="text-muted-foreground/40">|</span>
+                  <span className="flex items-center gap-1" title="Estimated LLM cost">
+                    <DollarSign className="h-3 w-3" />
+                    ${brd.generation_metadata.token_usage.estimated_cost_usd.toFixed(2)}
+                  </span>
+                  {brd.generation_metadata.model && (
+                    <>
+                      <span className="text-muted-foreground/40">|</span>
+                      <span className="flex items-center gap-1" title="Model used">
+                        <Cpu className="h-3 w-3" />
+                        {brd.generation_metadata.model}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleToggleChat} className="gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <Button variant="outline" onClick={handleToggleChat} className="gap-2 flex-1 md:flex-none">
               <MessageSquare className="h-4 w-4" />
               {chatOpen ? 'Hide Chat' : 'Chat'}
             </Button>
-            <Button onClick={handleExport} className="gap-2">
+            <Button onClick={handleExport} className="gap-2 flex-1 md:flex-none">
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -417,7 +441,7 @@ export default function BRDViewerPage() {
         <div className="flex-1 min-w-0 overflow-y-auto">
           {/* Conflicts Panel — scrolls with content */}
           {brd.conflicts && brd.conflicts.length > 0 && (
-            <div className="px-8 mb-4">
+            <div className="px-4 md:px-8 mb-4">
               <ConflictPanel
                 conflicts={brd.conflicts}
                 onResolveWithAI={handleResolveConflict}
@@ -429,7 +453,7 @@ export default function BRDViewerPage() {
           )}
 
           {/* Section Tabs — sticky so they stay visible while scrolling */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-8 py-2 border-b">
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-8 py-2 border-b">
             <BRDSectionTabs
               activeSection={activeSection}
               onSectionChange={setActiveSection}
@@ -439,7 +463,7 @@ export default function BRDViewerPage() {
 
           {/* BRD content */}
           <div
-            className={`px-8 py-6 relative transition-colors duration-700 ${
+            className={`px-4 md:px-8 py-6 relative transition-colors duration-700 ${
               updatedSection === activeSection
                 ? 'bg-emerald-500/5'
                 : ''

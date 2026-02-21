@@ -228,9 +228,9 @@ export default function ProjectDetailPage() {
   const hasFailedDocs = documents.some(d => d.status === 'failed')
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-6 md:mb-8">
         <Link href="/dashboard">
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -238,7 +238,7 @@ export default function ProjectDetailPage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold mb-2">{project?.name}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold mb-2">{project?.name}</h1>
           {project?.description && (
             <p className="text-muted-foreground">{project.description}</p>
           )}
