@@ -33,8 +33,8 @@ export default function SettingsPage() {
               <Input value={user?.email || ''} disabled />
             </div>
             <div>
-              <label className="text-sm font-medium mb-2 block">Username</label>
-              <Input value={user?.username || ''} disabled />
+              <label className="text-sm font-medium mb-2 block">Display Name</label>
+              <Input value={user?.display_name || ''} disabled />
             </div>
           </CardContent>
         </Card>

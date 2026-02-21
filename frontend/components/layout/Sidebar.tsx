@@ -62,11 +62,11 @@ export function Sidebar() {
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
               <span className="text-sm font-medium text-primary">
-                {user?.username?.charAt(0).toUpperCase()}
+                {user?.display_name?.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.username}</p>
+              <p className="text-sm font-medium truncate">{user?.display_name}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
           </div>

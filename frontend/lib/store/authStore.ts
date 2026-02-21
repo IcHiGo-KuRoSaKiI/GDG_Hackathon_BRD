@@ -2,9 +2,11 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 export interface User {
-  id: string
+  user_id: string
   email: string
-  username: string
+  display_name: string
+  created_at?: string
+  project_count?: number
 }
 
 interface AuthState {
