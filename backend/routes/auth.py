@@ -92,17 +92,6 @@ async def get_current_user_info(user: User = Depends(get_current_user)):
     return user
 
 
-@router.post("/logout")
-async def logout():
-    """
-    Logout endpoint (stateless JWT — no server-side action needed).
-
-    The frontend clears the token from localStorage.
-    This endpoint exists so the client doesn't get a 404.
-    """
-    return {"message": "Logged out"}
-
-
 @router.post("/verify")
 async def verify_token(user: User = Depends(get_current_user)):
     """

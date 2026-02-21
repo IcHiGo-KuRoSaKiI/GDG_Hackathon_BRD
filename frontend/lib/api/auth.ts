@@ -42,5 +42,5 @@ export async function getCurrentUser(): Promise<User> {
 }
 
 export async function logout(): Promise<void> {
-  await apiClient.post('/auth/logout')
+  // Stateless JWT — just clear client-side state (no backend endpoint needed)
 }
