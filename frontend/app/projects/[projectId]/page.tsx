@@ -138,10 +138,12 @@ export default function ProjectDetailPage() {
         })
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to upload documents')
+      const detail = err.response?.data?.detail
+      const message = typeof detail === 'string' ? detail : 'Failed to upload documents'
+      setError(message)
       toast({
         title: 'Upload failed',
-        description: err.response?.data?.detail || 'Failed to upload documents',
+        description: message,
         variant: 'destructive',
       })
     } finally {

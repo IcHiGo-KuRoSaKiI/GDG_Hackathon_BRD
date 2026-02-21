@@ -1,159 +1,123 @@
-# BRD Generator - GDG Hackathon 2026
+# BRD Generator
 
-Automatically generate comprehensive Business Requirements Documents by ingesting data from multiple communication channels (emails, meeting transcripts, Slack messages, uploaded documents).
+AI-powered platform that automatically generates Business Requirements Documents from uploaded project files. Upload emails, meeting transcripts, Slack exports, specs, or any document — the AI agent reads them, extracts requirements, detects conflicts, and produces a structured 13-section BRD.
 
-## 🎯 Problem Statement
+**Live:** [gdg-hackathon-brd.vercel.app](https://gdg-hackathon-brd.vercel.app)
 
-Business requirements are scattered across emails, meetings, chat messages, and informal documents. Manually synthesizing this information into a coherent BRD is time-consuming and error-prone.
+## Architecture
 
-**Solution:** AI-powered platform that automatically extracts, filters, and synthesizes requirements from multiple sources into structured, professional BRDs.
-
-## 🏗️ Architecture
+```
+┌────────────────┐         ┌────────────────────┐
+│   Frontend     │  HTTPS  │     Backend         │
+│   Next.js 14   │────────>│     FastAPI         │
+│   Vercel       │         │     Cloud Run       │
+└────────────────┘         └──────┬───────┬──────┘
+                                  │       │
+                           ┌──────┘       └──────┐
+                           v                     v
+                    ┌─────────────┐     ┌──────────────┐
+                    │  Firestore  │     │ Cloud Storage │
+                    │  (database) │     │  (documents)  │
+                    └─────────────┘     └──────────────┘
+                                  │
+                           ┌──────┘
+                           v
+                    ┌─────────────┐
+                    │  Gemini AI  │
+                    │  2.5 Pro    │
+                    └─────────────┘
+```
 
 **Monorepo Structure:**
 ```
 brd-generator/
-├── backend/          # FastAPI + Cloud Run
-├── frontend/         # Next.js + Vercel
-├── docs/            # Documentation & planning
+├── backend/          # FastAPI + Gemini AI agent
+├── frontend/         # Next.js 14 + shadcn/ui
+├── infra/            # Terraform (Cloud Run, Artifact Registry)
+├── Dockerfile        # Backend container (built from root)
+├── deploy.sh         # One-command backend deployment
 └── sample-documents/ # Test data (3 realistic projects)
 ```
 
-## 🚀 Tech Stack
+## Tech Stack
 
-### Backend
-- **Framework:** FastAPI
-- **Database:** Google Cloud Firestore
-- **Storage:** Google Cloud Storage
-- **AI/LLM:** Google Gemini 2.0 Flash
-- **Document Parser:** Chomper (36+ formats)
-- **Deployment:** Google Cloud Run
+| Layer | Technology |
+|---|---|
+| Frontend | Next.js 14, TypeScript, shadcn/ui, Tailwind CSS, Zustand |
+| Backend | FastAPI, Python 3.11, Pydantic |
+| AI | Google Gemini 2.5 Pro (agentic tool-calling) |
+| Database | Google Cloud Firestore |
+| Storage | Google Cloud Storage |
+| Auth | JWT (access + refresh tokens) |
+| Infra | Terraform, Cloud Run, Artifact Registry, Cloud Build |
+| Frontend Hosting | Vercel |
 
-### Frontend
-- **Framework:** Next.js 14 (App Router)
-- **UI:** Shadcn UI + Tailwind CSS
-- **Language:** TypeScript
-- **Deployment:** Vercel
+## Key Features
 
-### Infrastructure
-- **Cloud:** Google Cloud Platform
-- **Project:** gdg-brd-generator-2026
-- **Region:** us-central1
+- **Multi-format document upload** — PDF, DOCX, TXT, CSV, PPTX with drag-and-drop
+- **Agentic BRD generation** — AI reads all documents, generates 13-section BRD with citations
+- **Inline text refinement** — Select any text in the BRD, chat with AI to refine it
+- **Conflict detection** — Automatically finds contradictions across source documents
+- **Conflict resolution** — Accept/reject conflicts with persistent status tracking
+- **Citation tracking** — Every requirement links back to its source document
+- **Unified AI chat** — Ask questions, refine text, or trigger generation from one chat panel
 
-## 📋 Key Features
-
-### MVP (Week 1-2)
-- ✅ Upload documents (PDF, DOCX, TXT, CSV, PPTX)
-- ✅ Auto-classification and metadata generation
-- ✅ Gemini-powered requirement extraction
-- ✅ BRD generation with 8 sections
-- ✅ Citation tracking (click to view source)
-- ✅ Conflict detection across sources
-- ✅ Stakeholder sentiment analysis
-
-### Architecture Highlights
-- **Hybrid Chunking:** Chunks for citations only, full text for analysis
-- **Rich AI Metadata:** Smart document selection (70% cost savings)
-- **File-System Agent:** Outperforms traditional RAG (8.4 vs 6.4 accuracy)
-- **Adapter Pattern:** Extensible (Gmail, Slack, Fireflies adapters ready)
-
-## 🛠️ Setup
+## Quick Start
 
 ### Prerequisites
-- Node.js 18+
-- Python 3.11+
-- GCP Account with billing
+- Node.js 18+, Python 3.11+
+- GCP project with Firestore + Cloud Storage
 - Gemini API key
 
-### Quick Start
+### 1. Backend
 
-1. **Clone Repository**
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/brd-generator.git
-   cd brd-generator
-   ```
-
-2. **Backend Setup**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Edit .env with your credentials
-   python main.py
-   ```
-
-3. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   cp .env.example .env.local
-   # Edit .env.local with backend URL
-   npm run dev
-   ```
-
-4. **Access**
-   - Backend: http://localhost:8080
-   - Frontend: http://localhost:3000
-   - API Docs: http://localhost:8080/docs
-
-## 📚 Documentation
-
-- [Problem Statement](docs/problem-statement/hackathon-challenge.md)
-- [Final MVP Architecture](docs/plans/FINAL-MVP-ARCHITECTURE.md)
-- [GCP Setup Guide](docs/setup/SETUP-COMPLETE.md)
-- [GCP Commands Reference](docs/setup/gcp-commands-reference.md)
-- [Setup Commands Log](docs/setup/SETUP-COMMANDS-LOG.md)
-
-## 🚢 Deployment
-
-### Backend (Cloud Run)
 ```bash
 cd backend
-gcloud run deploy brd-generator-api \
-  --source . \
-  --region us-central1 \
-  --allow-unauthenticated
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # Fill in your credentials
+python main.py         # http://localhost:8080
 ```
 
-### Frontend (Vercel)
+### 2. Frontend
+
 ```bash
 cd frontend
-vercel deploy --prod
+npm install
+cp .env.local.example .env.local   # Set NEXT_PUBLIC_API_URL
+npm run dev                         # http://localhost:3000
 ```
 
-## 👥 Team
+See [backend/README.md](backend/README.md) and [frontend/README.md](frontend/README.md) for detailed setup.
+
+## Deployment
+
+### Backend (Cloud Run)
+
+```bash
+./deploy.sh    # Builds image, pushes to Artifact Registry, deploys via Terraform
+```
+
+Requires: `gcloud` CLI authenticated, Terraform installed, `infra/terraform.tfvars` populated. See [deploy.sh](deploy.sh).
+
+### Frontend (Vercel)
+
+1. Import repo on Vercel, set root directory to `frontend`
+2. Add env var: `NEXT_PUBLIC_API_URL` = Cloud Run URL
+3. Deploy
+
+After frontend deploy, add Vercel URL to `allowed_origins` in `infra/terraform.tfvars` and run `terraform apply` to update CORS.
+
+## Sample Documents
+
+Includes 33 realistic sample documents across 3 projects:
+- **E-commerce Checkout Redesign** (13 files) — budget conflicts, stakeholder disagreements
+- **Mobile Authentication** (10 files) — timeline slips, technical blockers
+- **Internal Dashboard** (10 files) — conflicting requirements, scope creep
+
+## Team
 
 - **Vedansh** - Full Stack Developer
 - **Vanshika** - Full Stack Developer
 
-## 📊 Sample Documents
-
-The repository includes 33 realistic sample documents across 3 projects:
-- **Set 1:** E-commerce Checkout Redesign (13 files)
-- **Set 2:** Mobile Authentication (10 files)
-- **Set 3:** Internal Dashboard (10 files)
-
-These demonstrate messy real-world scenarios: budget conflicts, timeline slips, technical blockers, stakeholder disagreements, and conflicting requirements.
-
-## 🎯 Implementation Timeline
-
-**Week 1:** Core MVP (Upload, Parsing, Basic BRD Generation)
-**Week 2:** Polish (Conflicts, Sentiment, UI/UX)
-
-See [FINAL-MVP-ARCHITECTURE.md](docs/plans/FINAL-MVP-ARCHITECTURE.md) for detailed timeline.
-
-## 📝 License
-
-MIT License - Built for GDG Hackathon 2026
-
-## 🙏 Acknowledgments
-
-- Google Cloud Platform for infrastructure
-- Google Gemini for AI capabilities
-- GDG community for the hackathon
-
----
-
-**Built with ❤️ for GDG Hackathon 2026**
+Built for GDG Hackathon 2026

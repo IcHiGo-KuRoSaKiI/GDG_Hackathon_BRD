@@ -55,7 +55,7 @@ export async function getDocument(projectId: string, documentId: string): Promis
 
 export async function uploadDocument(projectId: string, file: File): Promise<Document> {
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('files', file)
 
   const response = await apiClient.post(`/projects/${projectId}/documents/upload`, formData, {
     headers: {
