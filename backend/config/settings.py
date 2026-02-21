@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Gemini AI Configuration
     gemini_api_key: str
-    gemini_model: str = "gemini-1.5-pro-002"
+    gemini_model: str = "gemini-2.5-pro"
     gemini_temperature: float = 0.2
     gemini_max_retries: int = 3
 
