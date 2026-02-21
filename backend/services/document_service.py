@@ -102,9 +102,9 @@ class DocumentService:
                 metadata_task
             )
 
-            # Update AI metadata with classification
-            ai_metadata.document_type = classification["document_type"]
-            ai_metadata.confidence = classification["confidence"]
+            # Update AI metadata with classification (structured response)
+            ai_metadata.document_type = classification.document_type
+            ai_metadata.confidence = classification.confidence
 
             # 6. Store parsed text and chunks
             logger.info(f"Storing parsed text and {len(chunks)} chunks...")

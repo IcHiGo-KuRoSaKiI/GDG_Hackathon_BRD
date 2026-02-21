@@ -30,6 +30,17 @@ from .user import (
     UserResponse,
     AuthToken
 )
+from .ai_responses import (
+    DocumentClassificationResponse,
+    SentimentAnalysisResponse,
+    MetadataGenerationResponse,
+    RequirementResponse,
+    RequirementsExtractionResponse,
+    ConflictResponse,
+    ConflictDetectionResponse,
+    BRDSectionResponse,
+    AgentReasoningResponse
+)
 
 __all__ = [
     # Project models
@@ -59,5 +70,15 @@ __all__ = [
     "UserCreate",
     "UserLogin",
     "UserResponse",
-    "AuthToken"
+    "AuthToken",
+    # AI Response models
+    "DocumentClassificationResponse",
+    "SentimentAnalysisResponse",
+    "MetadataGenerationResponse",
+    "RequirementResponse",
+    "RequirementsExtractionResponse",
+    "ConflictResponse",
+    "ConflictDetectionResponse",
+    "BRDSectionResponse",
+    "AgentReasoningResponse"
 ]

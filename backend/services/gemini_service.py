@@ -1,16 +1,20 @@
 """
-Gemini AI service via LiteLLM.
-All AI operations using LiteLLM's unified interface with built-in retry logic.
+Gemini AI service via LiteLLM with structured outputs.
+All AI operations using Pydantic models for guaranteed JSON structure.
 """
-import json
 import logging
-from typing import Dict, List, Any
-from litellm import acompletion
-from ..config import litellm_router, settings
+from typing import List
+from ..config import litellm_router
 from ..utils import prompts
 from ..models import (
     AIMetadata,
-    DocumentType,
+    DocumentClassificationResponse,
+    SentimentAnalysisResponse,
+    MetadataGenerationResponse,
+    RequirementsExtractionResponse,
+    ConflictDetectionResponse,
+    BRDSectionResponse,
+    AgentReasoningResponse,
     TopicRelevance,
     ContentIndicators,
     KeyEntities,
@@ -21,53 +25,26 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiService:
-    """Service for Gemini AI operations via LiteLLM."""
+    """Service for Gemini AI operations via LiteLLM with structured outputs."""
 
     def __init__(self):
         """Initialize Gemini service with LiteLLM router."""
         self.router = litellm_router
 
-    async def _generate_with_retry(self, prompt: str) -> str:
-        """
-        Generate content using LiteLLM (retry logic built-in).
-
-        Args:
-            prompt: Prompt to send to Gemini
-
-        Returns:
-            Generated text response
-
-        Raises:
-            Exception: If generation failed after retries
-        """
-        try:
-            # Use router's async completion with built-in retries
-            response = await self.router.acompletion(
-                model="gemini-flash",  # Friendly name from router config
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            # Extract text from response
-            return response.choices[0].message.content
-
-        except Exception as e:
-            logger.error(f"LiteLLM generation failed: {e}", exc_info=True)
-            raise Exception(f"AI generation failed: {str(e)}")
-
     async def classify_document(
         self,
         filename: str,
         content_preview: str
-    ) -> Dict[str, Any]:
+    ) -> DocumentClassificationResponse:
         """
-        Classify document type and confidence.
+        Classify document type using structured output.
 
         Args:
             filename: Original filename
             content_preview: First ~500 characters of document
 
         Returns:
-            Dict with 'document_type' and 'confidence'
+            DocumentClassificationResponse with type, confidence, reasoning
         """
         prompt = prompts.format(
             "document_classification",
@@ -75,236 +52,209 @@ class GeminiService:
             content_preview=content_preview
         )
 
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response (may have markdown code blocks)
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=DocumentClassificationResponse
+            )
 
-            result = json.loads(json_str)
+            # Parse response using Pydantic
+            result = DocumentClassificationResponse.model_validate_json(
+                response.choices[0].message.content
+            )
+            logger.info(f"Classified {filename} as {result.document_type} (confidence: {result.confidence})")
             return result
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse classification JSON: {e}\nResponse: {response}")
+        except Exception as e:
+            logger.error(f"Document classification failed: {e}", exc_info=True)
             # Return default classification
-            return {
-                "document_type": "other",
-                "confidence": 0.5
-            }
+            return DocumentClassificationResponse(
+                document_type="other",
+                confidence=0.5,
+                reasoning="Classification failed, using default"
+            )
 
     async def generate_metadata(self, doc_text: str) -> AIMetadata:
         """
-        Generate complete AI metadata for document.
+        Generate comprehensive metadata using structured output.
 
         Args:
             doc_text: Full document text
 
         Returns:
-            AIMetadata model with all fields populated
+            AIMetadata with all structured fields
         """
         prompt = prompts.format("metadata_generation", doc_text=doc_text)
 
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
-
-            data = json.loads(json_str)
-
-            # Construct AIMetadata from parsed data
-            return AIMetadata(
-                document_type=DocumentType(data.get("document_type", "other")),
-                confidence=data.get("confidence", 0.5),
-                summary=data.get("summary", ""),
-                key_points=data.get("key_points", []),
-                tags=data.get("tags", []),
-                topic_relevance=TopicRelevance(**data.get("topic_relevance", {})),
-                content_indicators=ContentIndicators(**data.get("content_indicators", {})),
-                key_entities=KeyEntities(**data.get("key_entities", {})),
-                stakeholder_sentiments=[
-                    StakeholderSentiment(**s) for s in data.get("stakeholder_sentiments", [])
-                ]
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=MetadataGenerationResponse
             )
 
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse metadata JSON: {e}\nResponse: {response}")
-            # Return minimal metadata
-            return AIMetadata(
-                document_type=DocumentType.OTHER,
-                confidence=0.5,
-                summary="Error generating metadata",
-                key_points=[],
-                tags=[],
-                topic_relevance=TopicRelevance(),
-                content_indicators=ContentIndicators(),
-                key_entities=KeyEntities(),
-                stakeholder_sentiments=[]
+            # Parse response
+            result = MetadataGenerationResponse.model_validate_json(
+                response.choices[0].message.content
             )
 
-    async def extract_requirements(self, doc_text: str) -> List[Dict[str, Any]]:
+            # Convert to AIMetadata model
+            return AIMetadata(
+                document_type="",  # Will be set by classify_document
+                confidence=0.0,    # Will be set by classify_document
+                summary=result.summary,
+                tags=result.tags,
+                topics=TopicRelevance(**result.topics),
+                contains=ContentIndicators(**result.contains),
+                key_entities=KeyEntities(**result.key_entities),
+                sentiment=StakeholderSentiment(
+                    overall=result.sentiment.get("overall", "neutral"),
+                    stakeholder_sentiment=result.sentiment.get("stakeholder_sentiment", {})
+                )
+            )
+
+        except Exception as e:
+            logger.error(f"Metadata generation failed: {e}", exc_info=True)
+            raise Exception(f"AI generation failed: {str(e)}")
+
+    async def extract_requirements(self, doc_text: str) -> List[dict]:
         """
-        Extract requirements from document text.
+        Extract requirements using structured output.
 
         Args:
             doc_text: Full document text
 
         Returns:
-            List of requirement dicts with 'id', 'type', 'description', 'priority'
+            List of requirement dictionaries
         """
         prompt = prompts.format("requirement_extraction", doc_text=doc_text)
 
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=RequirementsExtractionResponse
+            )
 
-            result = json.loads(json_str)
-            return result.get("requirements", [])
+            result = RequirementsExtractionResponse.model_validate_json(
+                response.choices[0].message.content
+            )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse requirements JSON: {e}\nResponse: {response}")
+            logger.info(f"Extracted {len(result.requirements)} requirements")
+            return [req.model_dump() for req in result.requirements]
+
+        except Exception as e:
+            logger.error(f"Requirements extraction failed: {e}", exc_info=True)
             return []
 
-    async def detect_conflicts(self, requirements_json: str) -> List[Dict[str, Any]]:
+    async def detect_conflicts(self, requirements_json: str) -> List[dict]:
         """
-        Detect conflicts in requirements.
+        Detect conflicts in requirements using structured output.
 
         Args:
             requirements_json: JSON string of all requirements
 
         Returns:
-            List of conflict dicts
+            List of conflict dictionaries
         """
         prompt = prompts.format("conflict_detection", requirements_json=requirements_json)
 
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=ConflictDetectionResponse
+            )
 
-            result = json.loads(json_str)
-            return result.get("conflicts", [])
+            result = ConflictDetectionResponse.model_validate_json(
+                response.choices[0].message.content
+            )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse conflicts JSON: {e}\nResponse: {response}")
+            logger.info(f"Detected {len(result.conflicts)} conflicts")
+            return [conflict.model_dump() for conflict in result.conflicts]
+
+        except Exception as e:
+            logger.error(f"Conflict detection failed: {e}", exc_info=True)
             return []
 
     async def analyze_sentiment(
         self,
         doc_text: str,
         stakeholders: str
-    ) -> Dict[str, Any]:
+    ) -> dict:
         """
-        Analyze sentiment across documents.
+        Analyze sentiment using structured output.
 
         Args:
-            doc_text: Combined text from all documents
-            stakeholders: JSON string of stakeholder list
+            doc_text: Full document text
+            stakeholders_list: Comma-separated list of stakeholders
 
         Returns:
-            Sentiment analysis dict
+            Sentiment analysis dictionary
         """
         prompt = prompts.format(
             "sentiment_analysis",
             doc_text=doc_text,
-            stakeholders=stakeholders
+            stakeholders_list=stakeholders
         )
 
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=SentimentAnalysisResponse
+            )
 
-            return json.loads(json_str)
+            result = SentimentAnalysisResponse.model_validate_json(
+                response.choices[0].message.content
+            )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse sentiment JSON: {e}\nResponse: {response}")
-            return {
-                "overall_sentiment": "neutral",
-                "confidence": 0.5,
-                "stakeholder_breakdown": {},
-                "key_concerns": []
-            }
+            return result.model_dump()
+
+        except Exception as e:
+            logger.error(f"Sentiment analysis failed: {e}", exc_info=True)
+            return {"overall": "neutral", "stakeholder_sentiment": {}}
 
     async def generate_brd_section(
         self,
         section_name: str,
-        context: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        context: dict
+    ) -> dict:
         """
-        Generate a single BRD section with citations.
+        Generate BRD section using structured output.
 
         Args:
             section_name: Name of section (e.g., 'executive_summary')
-            context: Context dict with requirements, docs, conflicts, etc.
+            context: Context dict with requirements, conflicts, etc.
 
         Returns:
-            Dict with 'content', 'citations', 'subsections'
+            Dict with 'content' and 'citations'
         """
-        # Get section-specific prompt
         prompt_key = f"brd_section_{section_name}"
+        prompt = prompts.format(prompt_key, **context)
 
-        # Format context as JSON for prompt
-        context_json = json.dumps(context, indent=2)
-
-        prompt = prompts.format(prompt_key, context=context_json)
-
-        response = await self._generate_with_retry(prompt)
-
-        # Parse JSON response
         try:
-            # Extract JSON from response
-            if "```json" in response:
-                json_str = response.split("```json")[1].split("```")[0].strip()
-            elif "```" in response:
-                json_str = response.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response.strip()
+            response = await self.router.acompletion(
+                model="gemini-flash",
+                messages=[{"role": "user", "content": prompt}],
+                response_format=BRDSectionResponse
+            )
 
-            return json.loads(json_str)
+            result = BRDSectionResponse.model_validate_json(
+                response.choices[0].message.content
+            )
 
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse BRD section JSON: {e}\nResponse: {response}")
+            logger.info(f"Generated {section_name} section ({len(result.content)} chars)")
+            return result.model_dump()
+
+        except Exception as e:
+            logger.error(f"BRD section generation failed for {section_name}: {e}", exc_info=True)
             return {
-                "content": "Error generating section",
-                "citations": [],
-                "subsections": None
+                "content": f"# {section_name.replace('_', ' ').title()}\n\nContent generation failed.",
+                "citations": []
             }
 
 
-# Global service instance (no args needed, uses litellm_router)
+# Global service instance
 gemini_service = GeminiService()
