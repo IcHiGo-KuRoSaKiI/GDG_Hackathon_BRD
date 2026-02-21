@@ -3,7 +3,7 @@ Pydantic models for structured AI responses.
 Used with LiteLLM's response_format for guaranteed JSON structure.
 """
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from .document import TopicRelevance, ContentIndicators, KeyEntities, StakeholderSentiment
 
 
@@ -37,7 +37,7 @@ class MetadataGenerationResponse(BaseModel):
     topics: Dict[str, float] = Field(description="Topic relevance scores 0.0-1.0")
     contains: Dict[str, bool] = Field(description="Content indicators (what doc contains)")
     key_entities: Dict[str, List[str]] = Field(description="Stakeholders, features, decisions, dates, technologies")
-    sentiment: Dict[str, any] = Field(description="Overall and stakeholder sentiment")
+    sentiment: Dict[str, Any] = Field(description="Overall and stakeholder sentiment")
 
 
 class RequirementResponse(BaseModel):
