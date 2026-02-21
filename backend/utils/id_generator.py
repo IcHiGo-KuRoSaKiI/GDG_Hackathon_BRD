@@ -63,3 +63,13 @@ def generate_chunk_id(doc_id: str, index: int) -> str:
         Chunk ID in format: {doc_id}_chunk_{index}
     """
     return f"{doc_id}_chunk_{index:04d}"
+
+
+def generate_deletion_id() -> str:
+    """
+    Generate unique deletion job ID.
+
+    Returns:
+        Deletion ID in format: del_<random>
+    """
+    return _generate_id("del")

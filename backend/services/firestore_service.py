@@ -7,7 +7,7 @@ from datetime import datetime
 from google.cloud.firestore_v1 import AsyncClient
 from google.cloud.firestore import Increment
 from ..config import firestore_client
-from ..models import Project, Document, BRD, Chunk
+from ..models import Project, Document, BRD, Chunk, DeleteJob, User
 
 
 class FirestoreService:
@@ -244,6 +244,178 @@ class FirestoreService:
             brds.append(BRD(**data))
 
         return brds
+
+    # ============================================================
+    # DELETION JOBS
+    # ============================================================
+
+    async def create_deletion_job(self, job: DeleteJob) -> None:
+        """
+        Create a new deletion job in Firestore.
+
+        Args:
+            job: DeleteJob model to store
+        """
+        doc_ref = self.client.collection('deletion_jobs').document(job.deletion_id)
+        await doc_ref.set(job.to_dict())
+
+    async def get_deletion_job(self, deletion_id: str) -> Optional[DeleteJob]:
+        """
+        Get deletion job by ID.
+
+        Args:
+            deletion_id: Deletion job ID to retrieve
+
+        Returns:
+            DeleteJob model or None if not found
+        """
+        doc_ref = self.client.collection('deletion_jobs').document(deletion_id)
+        doc = await doc_ref.get()
+
+        if not doc.exists:
+            return None
+
+        data = doc.to_dict()
+        return DeleteJob.from_dict(data)
+
+    async def update_deletion_job(self, deletion_id: str, updates: Dict[str, Any]) -> None:
+        """
+        Update deletion job fields.
+
+        Args:
+            deletion_id: Deletion job ID to update
+            updates: Dictionary of fields to update
+        """
+        doc_ref = self.client.collection('deletion_jobs').document(deletion_id)
+        await doc_ref.update(updates)
+
+    async def list_deletion_jobs(
+        self,
+        user_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: int = 50
+    ) -> List[DeleteJob]:
+        """
+        List deletion jobs with optional filters.
+
+        Args:
+            user_id: Filter by user ID (optional)
+            project_id: Filter by project ID (optional)
+            status: Filter by status (optional)
+            limit: Maximum number of jobs to return
+
+        Returns:
+            List of DeleteJob models
+        """
+        query = self.client.collection('deletion_jobs')
+
+        if user_id:
+            query = query.where('user_id', '==', user_id)
+        if project_id:
+            query = query.where('project_id', '==', project_id)
+        if status:
+            query = query.where('status', '==', status)
+
+        query = query.order_by('created_at', direction='DESCENDING').limit(limit)
+        docs = query.stream()
+
+        jobs = []
+        async for doc in docs:
+            data = doc.to_dict()
+            jobs.append(DeleteJob.from_dict(data))
+
+        return jobs
+
+    # ============================================================
+    # DELETE OPERATIONS
+    # ============================================================
+
+    async def delete_document(self, doc_id: str) -> None:
+        """
+        Delete a document from Firestore.
+
+        Args:
+            doc_id: Document ID to delete
+        """
+        doc_ref = self.client.collection('documents').document(doc_id)
+        await doc_ref.delete()
+
+    async def delete_chunks_batch(self, chunk_ids: List[str]) -> None:
+        """
+        Delete chunks in batch (max 500 per batch).
+
+        Args:
+            chunk_ids: List of chunk IDs to delete
+        """
+        # Firestore batch limit is 500 operations
+        batch_size = 500
+
+        for i in range(0, len(chunk_ids), batch_size):
+            batch = self.client.batch()
+            batch_chunk_ids = chunk_ids[i:i + batch_size]
+
+            for chunk_id in batch_chunk_ids:
+                doc_ref = self.client.collection('chunks').document(chunk_id)
+                batch.delete(doc_ref)
+
+            await batch.commit()
+
+    async def delete_brd(self, brd_id: str) -> None:
+        """
+        Delete a BRD from Firestore.
+
+        Args:
+            brd_id: BRD ID to delete
+        """
+        doc_ref = self.client.collection('brds').document(brd_id)
+        await doc_ref.delete()
+
+    async def delete_project(self, project_id: str) -> None:
+        """
+        Delete a project from Firestore.
+
+        Args:
+            project_id: Project ID to delete
+        """
+        doc_ref = self.client.collection('projects').document(project_id)
+        await doc_ref.delete()
+
+    # ============================================================
+    # USER OPERATIONS
+    # ============================================================
+
+    async def get_user(self, user_id: str) -> Optional[User]:
+        """
+        Get user by ID.
+
+        Args:
+            user_id: User ID to retrieve
+
+        Returns:
+            User model or None if not found
+        """
+        doc_ref = self.client.collection('users').document(user_id)
+        doc = await doc_ref.get()
+
+        if not doc.exists:
+            return None
+
+        data = doc.to_dict()
+        # Convert ISO strings back to datetime
+        data['created_at'] = datetime.fromisoformat(data['created_at'])
+        return User(**data)
+
+    async def update_user(self, user_id: str, updates: Dict[str, Any]) -> None:
+        """
+        Update user fields.
+
+        Args:
+            user_id: User ID to update
+            updates: Dictionary of fields to update
+        """
+        doc_ref = self.client.collection('users').document(user_id)
+        await doc_ref.update(updates)
 
 
 # Global service instance

@@ -6,10 +6,11 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks,
 from typing import List
 import logging
 
-from ..models import Document, User
+from ..models import Document, User, DeletePreview, DeleteConfirmRequest, DeleteResponse, DeleteJob
 from ..services.document_service import document_service
 from ..services.firestore_service import firestore_service
-from ..utils import validate_project_id
+from ..services.deletion_service import deletion_service
+from ..utils import validate_project_id, validate_doc_id, validate_deletion_id
 from ..utils.auth_dependency import get_current_user
 from ..config import settings
 
@@ -213,3 +214,157 @@ async def get_document(
             status_code=500,
             detail=f"Failed to retrieve document: {str(e)}"
         )
+
+
+@router.delete("/{doc_id}/preview", response_model=DeletePreview)
+async def preview_document_deletion(
+    project_id: str,
+    doc_id: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Preview document deletion (Step 1 of 2-step delete).
+
+    Returns what will be deleted without actually deleting anything.
+    Preview expires after 5 minutes.
+
+    Args:
+        project_id: Project ID containing the document
+        doc_id: Document ID to delete
+
+    Returns:
+        DeletePreview with counts and deletion_id for confirmation
+
+    Raises:
+        400: Invalid IDs
+        404: Document not found
+        409: Deletion already in progress
+    """
+    # Validate IDs
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_doc_id(doc_id):
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+
+    try:
+        # Verify ownership
+        project = await firestore_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if project.user_id != user.user_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this project")
+
+        # Verify document belongs to project
+        document = await firestore_service.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if document.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Document not found in this project")
+
+        # Generate preview
+        preview = await deletion_service.preview_document_deletion(
+            project_id=project_id,
+            doc_id=doc_id,
+            user_id=user.user_id
+        )
+
+        return preview
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to preview document deletion: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{doc_id}", status_code=202, response_model=DeleteResponse)
+async def delete_document(
+    project_id: str,
+    doc_id: str,
+    request: DeleteConfirmRequest,
+    background_tasks: BackgroundTasks,
+    user: User = Depends(get_current_user)
+):
+    """
+    Confirm and execute document deletion (Step 2 of 2-step delete).
+
+    Requires valid deletion_id from preview and confirmation="DELETE".
+    Deletion runs in background. Client should poll status endpoint.
+
+    Args:
+        project_id: Project ID containing the document
+        doc_id: Document ID to delete
+        request: Confirmation with deletion_id and "DELETE"
+        background_tasks: FastAPI background tasks
+
+    Returns:
+        202 Accepted with deletion_id for status polling
+
+    Raises:
+        400: Invalid deletion_id or confirmation
+        404: Preview not found or expired
+        409: Deletion already in progress
+    """
+    # Validate IDs
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_doc_id(doc_id):
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+    if not validate_deletion_id(request.deletion_id):
+        raise HTTPException(status_code=400, detail="Invalid deletion ID format")
+
+    try:
+        # Get deletion job
+        job = await deletion_service.get_deletion_status(request.deletion_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Deletion preview not found")
+
+        # Verify ownership
+        if job.user_id != user.user_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this deletion")
+
+        # Verify it matches the requested document
+        if job.project_id != project_id or job.doc_id != doc_id:
+            raise HTTPException(status_code=400, detail="Deletion ID does not match document")
+
+        # Check if preview expired
+        from datetime import datetime
+        if datetime.fromisoformat(job.preview.expires_at) < datetime.utcnow():
+            raise HTTPException(
+                status_code=400,
+                detail="Preview expired. Please generate a new preview."
+            )
+
+        # Check if already queued or deleting
+        if job.status != "pending":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Deletion already {job.status.value}"
+            )
+
+        # Update status to QUEUED
+        from ..models import DeleteStatus
+        await firestore_service.update_deletion_job(job.deletion_id, {
+            "status": DeleteStatus.QUEUED.value
+        })
+
+        # Queue background task
+        background_tasks.add_task(
+            deletion_service.execute_deletion,
+            job.deletion_id
+        )
+
+        logger.info(f"Queued deletion {job.deletion_id} for document {doc_id}")
+
+        return DeleteResponse(
+            status="deleting",
+            deletion_id=job.deletion_id,
+            message="Document deletion started",
+            note=f"Poll GET /deletions/{job.deletion_id} to check status"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to execute document deletion: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

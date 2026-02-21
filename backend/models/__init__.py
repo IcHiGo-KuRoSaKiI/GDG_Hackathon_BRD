@@ -40,6 +40,15 @@ from .ai_responses import (
     BRDSectionResponse,
     AgentReasoningResponse
 )
+from .deletion import (
+    DeleteScope,
+    DeleteStatus,
+    DeletePreview,
+    DeletionProgress,
+    DeleteJob,
+    DeleteConfirmRequest,
+    DeleteResponse
+)
 
 __all__ = [
     # Project models
@@ -78,5 +87,13 @@ __all__ = [
     "RequirementsExtractionResponse",
     "ConflictDetectionResponse",
     "BRDSectionResponse",
-    "AgentReasoningResponse"
+    "AgentReasoningResponse",
+    # Deletion models
+    "DeleteScope",
+    "DeleteStatus",
+    "DeletePreview",
+    "DeletionProgress",
+    "DeleteJob",
+    "DeleteConfirmRequest",
+    "DeleteResponse"
 ]

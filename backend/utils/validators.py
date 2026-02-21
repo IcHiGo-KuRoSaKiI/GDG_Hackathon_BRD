@@ -50,6 +50,21 @@ def validate_brd_id(brd_id: str) -> bool:
     return bool(re.match(pattern, brd_id))
 
 
+def validate_deletion_id(deletion_id: str) -> bool:
+    """
+    Validate deletion job ID format.
+
+    Args:
+        deletion_id: Deletion ID to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    # Format: del_<alphanumeric>
+    pattern = r'^del_[a-z0-9]+$'
+    return bool(re.match(pattern, deletion_id))
+
+
 def sanitize_filename(filename: str) -> str:
     """
     Sanitize filename to prevent path traversal and special characters.

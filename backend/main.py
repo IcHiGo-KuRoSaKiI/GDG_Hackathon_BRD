@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import routes (absolute imports for running as module)
-from backend.routes import auth_router, projects_router, documents_router, brds_router
+from backend.routes import auth_router, projects_router, documents_router, brds_router, deletions_router
 from backend.config import settings
 
 # Create FastAPI app
@@ -44,6 +44,7 @@ app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(documents_router)
 app.include_router(brds_router)
+app.include_router(deletions_router)
 
 logger.info("BRD Generator API initialized")
 
