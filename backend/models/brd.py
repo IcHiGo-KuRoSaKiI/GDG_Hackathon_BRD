@@ -35,7 +35,7 @@ class Conflict(BaseModel):
 
 class Sentiment(BaseModel):
     """Overall sentiment analysis."""
-    overall_sentiment: str = Field(..., pattern="^(positive|neutral|negative|mixed)$")
+    overall_sentiment: str = Field(..., pattern="^(positive|neutral|negative|mixed|concerned)$")
     confidence: float = Field(..., ge=0.0, le=1.0)
     stakeholder_breakdown: Dict[str, str] = Field(default_factory=dict)  # name -> sentiment
     key_concerns: List[str] = Field(default_factory=list)
