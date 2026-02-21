@@ -77,22 +77,27 @@ class DocumentService:
             await self.firestore.create_document(document)
 
             # 2. Upload to Cloud Storage
-            logger.info(f"Uploading {filename} to Cloud Storage...")
+            logger.info(f"📤 [1/5] Uploading {filename} to Cloud Storage...")
             await self.storage.upload_file(file_data, document.storage_path)
+            logger.info(f"✅ Upload complete: {document.storage_path}")
 
             # 3. Parse with Chomper
             document.status = DocumentStatus.PROCESSING
             await self.firestore.update_document(doc_id, {"status": "processing"})
 
-            logger.info(f"Parsing {filename} with Chomper...")
+            logger.info(f"📄 [2/5] Parsing {filename} with Chomper...")
             full_text, chunks, chomper_meta = await self._parse_with_chomper(
                 file_data,
                 filename
             )
+            logger.info(f"✅ Parsed {len(full_text)} chars into {len(chunks)} chunks")
 
             # 4 & 5. Classify and generate metadata in parallel
-            logger.info(f"Running AI analysis on {filename}...")
+            logger.info(f"🤖 [3/5] Running AI analysis on {filename} (2 parallel tasks)...")
             content_preview = full_text[:500]
+
+            logger.info(f"  → Starting document classification...")
+            logger.info(f"  → Starting metadata generation...")
 
             classification_task = self.gemini.classify_document(filename, content_preview)
             metadata_task = self.gemini.generate_metadata(full_text)
@@ -102,12 +107,17 @@ class DocumentService:
                 metadata_task
             )
 
+            logger.info(f"✅ AI analysis complete:")
+            logger.info(f"  → Document type: {classification.document_type} (confidence: {classification.confidence:.2f})")
+            logger.info(f"  → Summary: {ai_metadata.summary[:100]}...")
+            logger.info(f"  → Tags: {', '.join(ai_metadata.tags[:5])}")
+
             # Update AI metadata with classification (structured response)
             ai_metadata.document_type = classification.document_type
             ai_metadata.confidence = classification.confidence
 
             # 6. Store parsed text and chunks
-            logger.info(f"Storing parsed text and {len(chunks)} chunks...")
+            logger.info(f"💾 [4/5] Storing parsed text and {len(chunks)} chunks...")
 
             # Store full text in Cloud Storage
             text_path = f"projects/{project_id}/documents/{doc_id}/text.txt"
@@ -115,8 +125,10 @@ class DocumentService:
 
             # Store chunks in Firestore
             await self.firestore.store_chunks(chunks)
+            logger.info(f"✅ Storage complete")
 
             # 7. Update document with complete status
+            logger.info(f"📝 [5/5] Finalizing document record...")
             document.status = DocumentStatus.COMPLETE
             document.processed_at = datetime.utcnow()
             document.text_path = text_path
@@ -133,7 +145,7 @@ class DocumentService:
                 "chunk_count": len(chunks)
             })
 
-            logger.info(f"Document {filename} processed successfully!")
+            logger.info(f"🎉 Document {filename} processed successfully! ({doc_id})")
             return document
 
         except Exception as e:

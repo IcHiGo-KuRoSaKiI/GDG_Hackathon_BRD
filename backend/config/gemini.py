@@ -1,17 +1,26 @@
 """
-Google Gemini AI configuration via LiteLLM.
-Provides unified AI interface with retry logic and fallbacks.
+AI configuration with factory pattern.
+- Native Google Genai SDK for Gemini (structured outputs)
+- LiteLLM for other models (unified interface)
 """
 import os
+from google import genai
 from litellm import Router
 from .settings import settings
 
 
-# Set Gemini API key in environment for LiteLLM
+# Set Gemini API key in environment
 os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
-# Configure LiteLLM router with Gemini
-# Using Router for built-in retry logic and fallbacks
+# ============================================
+# NATIVE GOOGLE GENAI SDK (for Gemini)
+# ============================================
+genai_client = genai.Client(api_key=settings.gemini_api_key)
+
+
+# ============================================
+# LITELLM ROUTER (for other models)
+# ============================================
 model_list = [
     {
         "model_name": "gemini-flash",  # Friendly name
@@ -29,6 +38,6 @@ model_list = [
 litellm_router = Router(
     model_list=model_list,
     num_retries=settings.gemini_max_retries,
-    timeout=120,  # 2 minutes timeout
-    fallbacks=[],  # Can add fallback models here if needed
+    timeout=120,
+    fallbacks=[],
 )

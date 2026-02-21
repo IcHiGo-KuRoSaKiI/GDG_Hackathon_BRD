@@ -1,11 +1,10 @@
 """
-Gemini AI service via LiteLLM.
-All AI operations using Pydantic validation after generation.
-No response_format parameter - Gemini doesn't support it.
+Gemini AI service using factory pattern with Pydantic models.
+Automatically uses native Gemini SDK for structured outputs.
 """
 import logging
 from typing import List
-from ..config import litellm_router
+from .ai_service import ai_service
 from ..utils import prompts
 from ..models import (
     AIMetadata,
@@ -15,7 +14,6 @@ from ..models import (
     RequirementsExtractionResponse,
     ConflictDetectionResponse,
     BRDSectionResponse,
-    AgentReasoningResponse,
     TopicRelevance,
     ContentIndicators,
     KeyEntities,
@@ -26,18 +24,18 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiService:
-    """Service for Gemini AI operations via LiteLLM."""
+    """Service for AI operations using factory pattern with Pydantic models."""
 
     def __init__(self):
-        """Initialize Gemini service with LiteLLM router."""
-        self.router = litellm_router
+        """Initialize Gemini service."""
+        self.ai = ai_service
 
     async def classify_document(
         self,
         filename: str,
         content_preview: str
     ) -> DocumentClassificationResponse:
-        """Classify document type."""
+        """Classify document type using Pydantic structured output."""
         prompt = prompts.format(
             "document_classification",
             filename=filename,
@@ -45,14 +43,9 @@ class GeminiService:
         )
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            # Parse response using Pydantic
-            result = DocumentClassificationResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=DocumentClassificationResponse
             )
             logger.info(f"Classified {filename} as {result.document_type}")
             return result
@@ -66,17 +59,13 @@ class GeminiService:
             )
 
     async def generate_metadata(self, doc_text: str) -> AIMetadata:
-        """Generate comprehensive metadata."""
+        """Generate comprehensive metadata using Pydantic structured output."""
         prompt = prompts.format("metadata_generation", doc_text=doc_text)
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            result = MetadataGenerationResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=MetadataGenerationResponse
             )
 
             # Convert to AIMetadata model
@@ -99,17 +88,13 @@ class GeminiService:
             raise Exception(f"AI generation failed: {str(e)}")
 
     async def extract_requirements(self, doc_text: str) -> List[dict]:
-        """Extract requirements."""
+        """Extract requirements using Pydantic structured output."""
         prompt = prompts.format("requirement_extraction", doc_text=doc_text)
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            result = RequirementsExtractionResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=RequirementsExtractionResponse
             )
 
             logger.info(f"Extracted {len(result.requirements)} requirements")
@@ -120,17 +105,13 @@ class GeminiService:
             return []
 
     async def detect_conflicts(self, requirements_json: str) -> List[dict]:
-        """Detect conflicts in requirements."""
+        """Detect conflicts using Pydantic structured output."""
         prompt = prompts.format("conflict_detection", requirements_json=requirements_json)
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            result = ConflictDetectionResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=ConflictDetectionResponse
             )
 
             logger.info(f"Detected {len(result.conflicts)} conflicts")
@@ -145,7 +126,7 @@ class GeminiService:
         doc_text: str,
         stakeholders: str
     ) -> dict:
-        """Analyze sentiment."""
+        """Analyze sentiment using Pydantic structured output."""
         prompt = prompts.format(
             "sentiment_analysis",
             doc_text=doc_text,
@@ -153,13 +134,9 @@ class GeminiService:
         )
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            result = SentimentAnalysisResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=SentimentAnalysisResponse
             )
 
             return result.model_dump()
@@ -173,18 +150,14 @@ class GeminiService:
         section_name: str,
         context: dict
     ) -> dict:
-        """Generate BRD section."""
+        """Generate BRD section using Pydantic structured output."""
         prompt_key = f"brd_section_{section_name}"
         prompt = prompts.format(prompt_key, **context)
 
         try:
-            response = await self.router.acompletion(
-                model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}]
-            )
-
-            result = BRDSectionResponse.model_validate_json(
-                response.choices[0].message.content
+            result = await self.ai.generate_structured(
+                prompt=prompt,
+                response_model=BRDSectionResponse
             )
 
             logger.info(f"Generated {section_name} section")
