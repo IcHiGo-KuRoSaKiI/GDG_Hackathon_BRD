@@ -82,7 +82,7 @@ export default function HomePage() {
         >
           <h1 className="text-5xl md:text-6xl font-bold mb-6">
             Generate Professional{' '}
-            <span className="gradient-text">BRDs from Chaos</span>
+            <span className="text-primary">BRDs from Chaos</span>
             <br />
             in Seconds
           </h1>
