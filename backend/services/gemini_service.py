@@ -56,10 +56,7 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": DocumentClassificationResponse.model_json_schema()
-                }
+                response_format={"type": "json_object"}  # Simple JSON mode
             )
 
             # Parse response using Pydantic
@@ -94,11 +91,8 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": MetadataGenerationResponse.model_json_schema()
-                }
-            )
+                response_format={"type": "json_object"}  # Simple JSON mode
+                )
 
             # Parse response
             result = MetadataGenerationResponse.model_validate_json(
@@ -140,11 +134,8 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": RequirementsExtractionResponse.model_json_schema()
-                }
-            )
+                response_format={"type": "json_object"}  # Simple JSON mode
+                )
 
             result = RequirementsExtractionResponse.model_validate_json(
                 response.choices[0].message.content
@@ -173,11 +164,8 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": ConflictDetectionResponse.model_json_schema()
-                }
-            )
+                response_format={"type": "json_object"}  # Simple JSON mode
+                )
 
             result = ConflictDetectionResponse.model_validate_json(
                 response.choices[0].message.content
@@ -215,11 +203,8 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": SentimentAnalysisResponse.model_json_schema()
-                }
-            )
+                response_format={"type": "json_object"}  # Simple JSON mode
+                )
 
             result = SentimentAnalysisResponse.model_validate_json(
                 response.choices[0].message.content
@@ -253,11 +238,8 @@ class GeminiService:
             response = await self.router.acompletion(
                 model="gemini-flash",
                 messages=[{"role": "user", "content": prompt}],
-                response_format={
-                    "type": "json_object",
-                    "response_schema": BRDSectionResponse.model_json_schema()
-                }
-            )
+                response_format={"type": "json_object"}  # Simple JSON mode
+                )
 
             result = BRDSectionResponse.model_validate_json(
                 response.choices[0].message.content
