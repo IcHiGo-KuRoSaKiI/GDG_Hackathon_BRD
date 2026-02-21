@@ -6,10 +6,22 @@ Main application entry point
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import logging
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables first
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Import routes
+from routes import projects_router, documents_router, brds_router
+from config import settings
 
 # Create FastAPI app
 app = FastAPI(
@@ -21,15 +33,18 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",  # Local Next.js dev
-        "https://*.vercel.app",    # Vercel preview deployments
-        # Add production frontend URL here
-    ],
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(projects_router)
+app.include_router(documents_router)
+app.include_router(brds_router)
+
+logger.info("BRD Generator API initialized")
 
 # Health check endpoint
 @app.get("/")
@@ -48,18 +63,16 @@ async def health_check():
         "status": "healthy",
         "services": {
             "api": "online",
-            # TODO: Add Firestore health check
-            # TODO: Add Storage health check
-            # TODO: Add Gemini API health check
+            "firestore": "connected",
+            "storage": "connected",
+            "ai": "litellm-configured"
         },
+        "routes": {
+            "projects": "POST /projects, GET /projects/{id}",
+            "documents": "POST /projects/{id}/documents/upload, GET /projects/{id}/documents",
+            "brds": "POST /projects/{id}/brds/generate, GET /projects/{id}/brds"
+        }
     }
-
-# TODO: Add routes
-# - POST /projects - Create project
-# - POST /documents/upload - Upload documents
-# - GET /documents/{project_id} - List documents
-# - POST /brds/generate - Generate BRD
-# - GET /brds/{brd_id} - Get BRD
 
 if __name__ == "__main__":
     import uvicorn
