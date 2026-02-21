@@ -24,7 +24,12 @@ class Settings(BaseSettings):
     # Server Configuration
     port: int = 8080
     environment: str = "development"
-    allowed_origins: List[str] = ["http://localhost:3000"]
+    allowed_origins: str = "http://localhost:3000"  # Comma-separated string
+
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Parse allowed_origins into list."""
+        return [origin.strip() for origin in self.allowed_origins.split(",")]
 
     # Processing Configuration
     max_file_size_mb: int = 50
