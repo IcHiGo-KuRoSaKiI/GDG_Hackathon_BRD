@@ -91,6 +91,11 @@ class BRDGenerateRequest(BaseModel):
     max_citations_per_section: int = Field(10, ge=1, le=50)
 
 
+class UpdateBRDSectionRequest(BaseModel):
+    """Request model for updating a single BRD section's content."""
+    content: str = Field(..., min_length=1, max_length=50000)
+
+
 # ============================================================================
 # TEXT REFINEMENT MODELS (Inline BRD Editing)
 # ============================================================================

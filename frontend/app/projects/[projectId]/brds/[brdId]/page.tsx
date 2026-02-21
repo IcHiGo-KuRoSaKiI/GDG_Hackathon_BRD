@@ -1,13 +1,17 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { ArrowLeft, Download, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getBRD, BRD } from '@/lib/api/brds'
+import { getBRD, updateBRDSection, BRD } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
 import { BRDSection } from '@/components/brd/BRDSection'
 import { ConflictPanel } from '@/components/brd/ConflictPanel'
+import { RefineToolbar } from '@/components/brd/RefineToolbar'
+import { RefineChatPanel } from '@/components/brd/RefineChatPanel'
+import { useTextSelection } from '@/hooks/useTextSelection'
+import { useRefineText } from '@/hooks/useRefineText'
 import { formatRelativeTime } from '@/lib/utils/formatters'
 import Link from 'next/link'
 
@@ -29,7 +33,6 @@ const SECTION_TITLES: Record<string, string> = {
 
 export default function BRDViewerPage() {
   const params = useParams()
-  const router = useRouter()
   const projectId = params.projectId as string
   const brdId = params.brdId as string
 
@@ -37,6 +40,19 @@ export default function BRDViewerPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeSection, setActiveSection] = useState('executive_summary')
+  const [chatOpen, setChatOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Callback ref so useTextSelection re-runs when the element mounts after loading
+  const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null)
+
+  // Snapshot selection state when chat opens (selection gets cleared on open)
+  const refineSelectedTextRef = useRef('')
+  const refineSectionKeyRef = useRef('')
+  const refineModeRef = useRef<'refine' | 'generate'>('refine')
+
+  const selection = useTextSelection(contentEl)
+  const refine = useRefineText({ projectId, brdId })
 
   useEffect(() => {
     loadBRD()
@@ -48,7 +64,6 @@ export default function BRDViewerPage() {
       const data = await getBRD(projectId, brdId)
       setBRD(data)
 
-      // Set first available section as active
       if (data.sections) {
         const availableSections = Object.keys(data.sections).filter(
           (key) => data.sections[key as keyof typeof data.sections]?.content
@@ -64,10 +79,73 @@ export default function BRDViewerPage() {
     }
   }
 
+  // Open the refine chat panel — snapshot selection into refs before clearing
+  const handleOpenRefine = useCallback(() => {
+    refineSelectedTextRef.current = selection.selectedText
+    refineSectionKeyRef.current = selection.sectionKey || activeSection
+    refineModeRef.current = selection.mode
+    refine.initSession(selection.selectedText, selection.sectionKey || activeSection, selection.mode)
+    setChatOpen(true)
+    selection.clearSelection()
+  }, [selection, refine, activeSection])
+
+  // Accept refined text → persist to backend and update local state
+  const handleAccept = useCallback(async () => {
+    if (!refine.latestRefinedText || !brd) return
+
+    const sectionKey = refineSectionKeyRef.current
+    const originalSelectedText = refineSelectedTextRef.current
+    setSaving(true)
+
+    try {
+      const currentSection = brd.sections?.[sectionKey as keyof typeof brd.sections]
+      if (!currentSection) return
+
+      let newContent: string
+      if (originalSelectedText && currentSection.content.includes(originalSelectedText)) {
+        newContent = currentSection.content.replace(
+          originalSelectedText,
+          refine.latestRefinedText
+        )
+      } else {
+        // Generate mode or text not found — append to end of section
+        newContent = currentSection.content + '\n\n' + refine.latestRefinedText
+      }
+
+      await updateBRDSection(projectId, brdId, sectionKey, newContent)
+
+      // Update local state
+      setBRD((prev) => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          sections: {
+            ...prev.sections,
+            [sectionKey]: {
+              ...prev.sections[sectionKey as keyof typeof prev.sections]!,
+              content: newContent,
+            },
+          },
+        }
+      })
+
+      setChatOpen(false)
+      refine.reset()
+    } catch (err: any) {
+      console.error('Failed to save section:', err)
+    } finally {
+      setSaving(false)
+    }
+  }, [refine, brd, projectId, brdId])
+
+  const handleCloseChat = useCallback(() => {
+    setChatOpen(false)
+    refine.reset()
+  }, [refine])
+
   const handleExport = () => {
     if (!brd || !brd.sections) return
 
-    // Compile all sections into a markdown document
     let markdown = `# Business Requirements Document\n\n`
     markdown += `Generated: ${new Date(brd.created_at).toLocaleDateString()}\n\n`
     markdown += `---\n\n`
@@ -90,7 +168,6 @@ export default function BRDViewerPage() {
       }
     })
 
-    // Create download
     const blob = new Blob([markdown], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -167,13 +244,37 @@ export default function BRDViewerPage() {
         />
       </div>
 
-      {/* Section Content */}
-      <div className="mb-8">
+      {/* Section Content — wrapped with ref for text selection detection */}
+      <div className="mb-8 relative" ref={setContentEl}>
         <BRDSection
           section={brd.sections?.[activeSection as keyof typeof brd.sections]}
           title={SECTION_TITLES[activeSection] || activeSection}
+          sectionKey={activeSection}
         />
+
+        {/* Floating Refine Toolbar */}
+        {selection.isActive && !chatOpen && (
+          <RefineToolbar
+            position={selection.toolbarPosition}
+            mode={selection.mode}
+            onRefine={handleOpenRefine}
+          />
+        )}
       </div>
+
+      {/* Refine Chat Panel */}
+      <RefineChatPanel
+        open={chatOpen}
+        mode={refineModeRef.current}
+        sectionTitle={SECTION_TITLES[refineSectionKeyRef.current] || refineSectionKeyRef.current}
+        originalText={refineSelectedTextRef.current}
+        messages={refine.messages}
+        isLoading={refine.isLoading || saving}
+        latestRefinedText={refine.latestRefinedText}
+        onSendPrompt={refine.sendPrompt}
+        onAccept={handleAccept}
+        onClose={handleCloseChat}
+      />
     </div>
   )
 }

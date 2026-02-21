@@ -9,9 +9,10 @@ Security: Defense-in-depth against prompt injection attacks.
 """
 
 import asyncio
+import json
 import logging
 from typing import List, Dict, Any, Optional
-import google.generativeai as genai
+from google.genai import types
 
 from ..models.brd import (
     RefineTextRequest,
@@ -24,6 +25,7 @@ from ..utils.prompts import prompts
 from ..utils.sanitization import escape_user_input
 from ..agent.tools import AGENT_TOOLS_SCHEMAS, ToolExecutor, AgentTools
 from ..config.firebase import firestore_client, storage_bucket
+from ..config import genai_client, settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class TextRefinementService:
 
     def __init__(self):
         """Initialize the text refinement service."""
-        self.model_name = "gemini-2.0-flash-exp"
+        self.model_name = settings.gemini_model
 
         # Initialize agent tools for document access
         tools = AgentTools(
@@ -48,6 +50,20 @@ class TextRefinementService:
             storage_client=storage_bucket.client
         )
         self.tool_executor = ToolExecutor(tools)
+
+        # Build function declarations for the new SDK from AGENT_TOOLS_SCHEMAS
+        self._gemini_tools = [
+            types.Tool(
+                function_declarations=[
+                    types.FunctionDeclaration(
+                        name=schema["name"],
+                        description=schema["description"],
+                        parameters_json_schema=schema["parameters"],
+                    )
+                    for schema in AGENT_TOOLS_SCHEMAS
+                ]
+            )
+        ]
 
     async def refine_text(
         self,
@@ -236,7 +252,7 @@ class TextRefinementService:
                 - sources_used: List of document filenames
                 - tool_calls: List of tool names called
         """
-        messages = [{"role": "user", "parts": [initial_prompt]}]
+        messages = [types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)])]
         sources_used = set()  # Track unique document filenames
         tool_calls = []  # Track tool names called
         max_iterations = 5
@@ -255,19 +271,19 @@ class TextRefinementService:
             # Check for function calls
             candidate = response.candidates[0]
 
-            if hasattr(candidate.content, 'parts'):
+            if candidate.content and candidate.content.parts:
                 # Check if any part is a function call
                 has_function_calls = any(
-                    hasattr(part, 'function_call')
+                    part.function_call is not None
                     for part in candidate.content.parts
                 )
 
                 if has_function_calls:
                     # Execute function calls
-                    function_responses = []
+                    function_response_parts = []
 
                     for part in candidate.content.parts:
-                        if hasattr(part, 'function_call'):
+                        if part.function_call is not None:
                             function_call = part.function_call
                             logger.info(f"AI called tool: {function_call.name}")
 
@@ -288,37 +304,32 @@ class TextRefinementService:
 
                                 # Track sources if document was accessed
                                 if function_call.name == "get_full_document_text":
-                                    # Extract filename from result if available
                                     if isinstance(result, dict) and 'filename' in result:
                                         sources_used.add(result['filename'])
 
-                                function_responses.append({
-                                    "function_call": function_call,
-                                    "function_response": {
-                                        "name": function_call.name,
-                                        "response": result
-                                    }
-                                })
+                                # Ensure result is a dict for function response
+                                if not isinstance(result, dict):
+                                    result = {"result": str(result)}
+
+                                function_response_parts.append(
+                                    types.Part.from_function_response(
+                                        name=function_call.name,
+                                        response=result
+                                    )
+                                )
 
                             except Exception as e:
                                 logger.error(f"Tool execution failed: {e}")
-                                function_responses.append({
-                                    "function_call": function_call,
-                                    "function_response": {
-                                        "name": function_call.name,
-                                        "response": {"error": str(e)}
-                                    }
-                                })
+                                function_response_parts.append(
+                                    types.Part.from_function_response(
+                                        name=function_call.name,
+                                        response={"error": str(e)}
+                                    )
+                                )
 
-                    # Add function responses to conversation
-                    messages.append({
-                        "role": "model",
-                        "parts": [part for part in candidate.content.parts]
-                    })
-                    messages.append({
-                        "role": "user",
-                        "parts": [resp["function_response"] for resp in function_responses]
-                    })
+                    # Add model's response and function results to conversation
+                    messages.append(candidate.content)
+                    messages.append(types.Content(role="user", parts=function_response_parts))
 
                     # Continue loop for next iteration
                     continue
@@ -327,7 +338,7 @@ class TextRefinementService:
             logger.info("AI returned final answer (no more tool calls)")
 
             # Extract final text from response
-            final_text = candidate.content.parts[0].text if candidate.content.parts else ""
+            final_text = candidate.content.parts[0].text if candidate.content and candidate.content.parts else ""
 
             return {
                 'text': final_text,
@@ -339,25 +350,22 @@ class TextRefinementService:
         logger.warning(f"Max iterations ({max_iterations}) reached")
         raise Exception("Maximum iterations reached without final answer")
 
-    def _call_gemini_with_tools(self, messages: List[Dict]) -> Any:
+    def _call_gemini_with_tools(self, messages: List) -> Any:
         """
         Call Gemini with tools enabled (synchronous).
 
         Args:
-            messages: Conversation history
+            messages: Conversation history (list of Content objects)
 
         Returns:
             Gemini response
         """
-        model = genai.GenerativeModel(
-            model_name=self.model_name,
-            tools=AGENT_TOOLS_SCHEMAS
-        )
-
-        response = model.generate_content(
+        response = genai_client.models.generate_content(
+            model=self.model_name,
             contents=messages,
-            generation_config={
-                "temperature": 0.3,  # Lower for consistency
+            config={
+                "tools": self._gemini_tools,
+                "temperature": 0.3,
                 "top_p": 0.95,
                 "top_k": 40,
                 "max_output_tokens": 2048,
@@ -374,6 +382,9 @@ class TextRefinementService:
         """
         Generate structured output using Gemini with Pydantic schema.
 
+        Uses the new google-genai SDK via genai_client, matching
+        the pattern in ai_service.py.
+
         Args:
             prompt: Formatted prompt
             response_model: Pydantic model for response schema
@@ -381,24 +392,20 @@ class TextRefinementService:
         Returns:
             Parsed Pydantic model instance
         """
-        model = genai.GenerativeModel(
-            model_name=self.model_name
-        )
-
         # Call Gemini in thread pool (blocking call)
         response = await asyncio.to_thread(
-            model.generate_content,
-            prompt,
-            generation_config={
+            genai_client.models.generate_content,
+            model=self.model_name,
+            contents=prompt,
+            config={
                 "response_mime_type": "application/json",
-                "response_schema": response_model.model_json_schema(),
+                "response_json_schema": response_model.model_json_schema(),
                 "temperature": 0.3,
                 "max_output_tokens": 2048,
             }
         )
 
         # Parse JSON response into Pydantic model
-        import json
         result_json = response.text
         result = response_model.model_validate_json(result_json)
 

@@ -12,10 +12,11 @@ import { BRDSection as BRDSectionType } from '@/lib/api/brds'
 interface BRDSectionProps {
   section: BRDSectionType | undefined
   title: string
+  sectionKey?: string
   onViewDocument?: (documentId: string) => void
 }
 
-export function BRDSection({ section, title, onViewDocument }: BRDSectionProps) {
+export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSectionProps) {
   const [copied, setCopied] = useState(false)
 
   if (!section || !section.content) {
@@ -112,7 +113,7 @@ export function BRDSection({ section, title, onViewDocument }: BRDSectionProps) 
         </Button>
       </div>
 
-      <div className="border rounded-lg p-6 bg-card">
+      <div className="border rounded-lg p-6 bg-card" data-section-key={sectionKey}>
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
             {section.content}

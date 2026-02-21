@@ -211,6 +211,19 @@ export async function refineText(
   return response.data
 }
 
+export async function updateBRDSection(
+  projectId: string,
+  brdId: string,
+  sectionKey: string,
+  content: string
+): Promise<BRDSection | undefined> {
+  const response = await apiClient.patch(
+    `/projects/${projectId}/brds/${brdId}/sections/${sectionKey}`,
+    { content }
+  )
+  return transformSection(response.data)
+}
+
 export async function deleteBRD(projectId: string, brdId: string): Promise<void> {
   await apiClient.delete(`/projects/${projectId}/brds/${brdId}`)
 }

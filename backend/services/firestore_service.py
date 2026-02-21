@@ -361,6 +361,28 @@ class FirestoreService:
 
             await batch.commit()
 
+    async def update_brd_section(self, brd_id: str, section_key: str, content: str) -> dict:
+        """
+        Update a single BRD section's content using Firestore dot-notation.
+
+        Args:
+            brd_id: BRD ID to update
+            section_key: Section key (e.g. 'executive_summary')
+            content: New content for the section
+
+        Returns:
+            Updated section data dict
+        """
+        doc_ref = self.client.collection('brds').document(brd_id)
+        await doc_ref.update({
+            f'{section_key}.content': content,
+            'updated_at': datetime.utcnow().isoformat(),
+        })
+        # Read back the updated section
+        doc = await doc_ref.get()
+        data = doc.to_dict()
+        return data.get(section_key, {})
+
     async def delete_brd(self, brd_id: str) -> None:
         """
         Delete a BRD from Firestore.

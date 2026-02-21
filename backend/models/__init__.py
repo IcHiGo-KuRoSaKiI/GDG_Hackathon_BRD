@@ -22,6 +22,7 @@ from .brd import (
     Conflict,
     Sentiment,
     BRDGenerateRequest,
+    UpdateBRDSectionRequest,
     # Text refinement models
     RefineTextRequest,
     RefineTextResponse,
@@ -80,6 +81,7 @@ __all__ = [
     "Conflict",
     "Sentiment",
     "BRDGenerateRequest",
+    "UpdateBRDSectionRequest",
     # Text refinement
     "RefineTextRequest",
     "RefineTextResponse",
