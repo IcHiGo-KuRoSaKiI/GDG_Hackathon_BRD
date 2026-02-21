@@ -51,20 +51,23 @@ class BRD(BaseModel):
     document_count: int  # Number of source documents used
     total_citations: int
 
-    # BRD Sections (13 required sections - industry standard)
+    # BRD Sections (13 sections - industry standard)
+    # Core sections (always present)
     executive_summary: BRDSection
-    project_background: BRDSection
     business_objectives: BRDSection
-    project_scope: BRDSection
     stakeholders: BRDSection
     functional_requirements: BRDSection
     non_functional_requirements: BRDSection
-    dependencies: BRDSection
-    risks: BRDSection
     assumptions: BRDSection
-    cost_benefit: BRDSection
     success_metrics: BRDSection
     timeline: BRDSection
+
+    # Extended sections (optional for backward compatibility with existing BRDs)
+    project_background: Optional[BRDSection] = None
+    project_scope: Optional[BRDSection] = None
+    dependencies: Optional[BRDSection] = None
+    risks: Optional[BRDSection] = None
+    cost_benefit: Optional[BRDSection] = None
 
     # Analysis
     conflicts: List[Conflict] = Field(default_factory=list)
