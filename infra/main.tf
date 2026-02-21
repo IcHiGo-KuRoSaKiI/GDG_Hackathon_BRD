@@ -27,10 +27,9 @@ resource "google_artifact_registry_repository" "backend" {
 # Cloud Run v2 Service
 # ---------------------------------------------------------------------------
 resource "google_cloud_run_v2_service" "backend" {
-  name                = var.service_name
-  location            = var.region
-  deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  name     = var.service_name
+  location = var.region
+  ingress  = "INGRESS_TRAFFIC_ALL"
 
   template {
     service_account = var.service_account_email
