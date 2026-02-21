@@ -42,7 +42,7 @@ export default function RegisterPage() {
 
     try {
       const response = await register({ email, username, password })
-      authStore.login(response.access_token, response.user)
+      authStore.login(response.token, response.user)
       router.push('/dashboard')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.')
