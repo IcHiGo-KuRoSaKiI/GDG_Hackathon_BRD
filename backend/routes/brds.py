@@ -472,7 +472,14 @@ async def chat_with_brd(
         if brd.project_id != project_id:
             raise HTTPException(status_code=404, detail=f"BRD {brd_id} not found in project {project_id}")
 
-        result = await text_refinement_service.chat(project_id, brd_id, request)
+        # Extract current section content so the AI can see what it's working with
+        section_key = request.section_context.value
+        section_obj = getattr(brd, section_key, None)
+        section_content = section_obj.content if section_obj else ""
+
+        result = await text_refinement_service.chat(
+            project_id, brd_id, request, section_content=section_content
+        )
 
         logger.info(
             f"Chat successful - Type: {result.response_type}, "

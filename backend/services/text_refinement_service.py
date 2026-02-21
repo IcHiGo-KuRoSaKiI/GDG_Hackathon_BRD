@@ -405,7 +405,8 @@ class TextRefinementService:
         self,
         project_id: str,
         brd_id: str,
-        request: ChatRequest
+        request: ChatRequest,
+        section_content: str = "",
     ) -> ChatResponse:
         """
         Unified agentic chat — single pipeline for refinement, questions,
@@ -418,6 +419,7 @@ class TextRefinementService:
             project_id: Project ID for document access
             brd_id: BRD ID being viewed
             request: Chat request with message and optional selected_text
+            section_content: Current content of the BRD section being viewed
 
         Returns:
             ChatResponse with AI-classified response_type
@@ -425,18 +427,21 @@ class TextRefinementService:
         logger.info(
             f"Unified chat request - Project: {project_id}, "
             f"Section: {request.section_context}, "
-            f"Has selection: {bool(request.selected_text)}"
+            f"Has selection: {bool(request.selected_text)}, "
+            f"Has section content: {bool(section_content)}"
         )
 
         # Layer 3 Security: Escape user inputs
         escaped_message = escape_user_input(request.message)
         escaped_text = escape_user_input(request.selected_text) if request.selected_text else ""
+        escaped_section_content = escape_user_input(section_content) if section_content else "(no content yet)"
 
         # Format unified chat prompt
         prompt = prompts.format(
             "unified_chat",
             project_id=project_id,
             section=request.section_context.value,
+            section_content=escaped_section_content,
             message=escaped_message,
             selected_text=escaped_text,
         )
@@ -602,7 +607,7 @@ class TextRefinementService:
                 "temperature": 0.3,
                 "top_p": 0.95,
                 "top_k": 40,
-                "max_output_tokens": 4096,
+                "max_output_tokens": 8192,
             }
         )
 
