@@ -1,7 +1,8 @@
 import apiClient from './client'
 
 export interface Project {
-  id: string
+  project_id: string
+  user_id: string
   name: string
   description?: string
   created_at: string
