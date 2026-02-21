@@ -9,12 +9,18 @@ node_modules/
 infra/
 deploy.sh
 
-# Sample data / docs
+# Sample data / docs / datasets
 sample-documents/
 docs/
 docs.zip
+enron_dataset/
+filtered_emails/
+eda_output/
+backend/preprocessing/
 *.zip
 *.md
+*.pdf
+BRD-*.md
 
 # Secrets (NEVER upload to Cloud Build)
 .env
