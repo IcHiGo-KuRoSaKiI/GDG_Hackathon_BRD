@@ -1,0 +1,35 @@
+# ============================================
+# BRD Generator - Backend Dependencies
+# ============================================
+
+# Web Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# Firebase / Firestore
+firebase-admin==6.4.0
+
+# Google Cloud
+google-cloud-storage==2.14.0
+google-generativeai==0.3.2
+
+# AI/LLM
+litellm==1.17.9
+
+# Document Parsing (Chomper - MCP)
+# Note: Install via MCP or pip install chomper
+
+# Utilities
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Date/Time
+python-dateutil==2.8.2
+
+# Async support
+aiofiles==23.2.1
+
+# CORS
+fastapi-cors==0.0.6

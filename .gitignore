@@ -1,0 +1,194 @@
+# ============================================
+# BRD Generator - Monorepo .gitignore
+# ============================================
+
+# ==========================================
+# GCP CREDENTIALS (CRITICAL - NEVER COMMIT!)
+# ==========================================
+service-account-key.json
+*-service-account-key.json
+*.json.key
+gcp-credentials.json
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env*.local
+
+# ==========================================
+# SAMPLE DOCUMENTS (Commit Later)
+# ==========================================
+# Temporarily ignore sample documents
+# Remove these lines when ready to commit
+sample-documents/
+docs/
+
+# ==========================================
+# PYTHON / BACKEND
+# ==========================================
+# Byte-compiled / optimized
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+venv/
+env/
+ENV/
+backend/venv/
+backend/env/
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# FastAPI
+*.db
+*.sqlite3
+
+# ==========================================
+# NODE.JS / FRONTEND
+# ==========================================
+# Dependencies
+node_modules/
+frontend/node_modules/
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js
+frontend/.next/
+frontend/out/
+.next/
+out/
+
+# Production build
+frontend/build
+build/
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# ==========================================
+# DEPLOYMENT
+# ==========================================
+# Docker
+*.log
+docker-compose.override.yml
+
+# Cloud Run
+.gcloudignore
+
+# ==========================================
+# IDE / EDITOR
+# ==========================================
+# VSCode
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ==========================================
+# OS
+# ==========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ==========================================
+# TEMPORARY FILES
+# ==========================================
+*.tmp
+*.temp
+tmp/
+temp/
+
+# ==========================================
+# LOGS
+# ==========================================
+logs/
+*.log
+
+# ==========================================
+# GENERATED FILES
+# ==========================================
+# Uploaded documents (if storing locally)
+uploads/
+parsed/
+generated-brds/
