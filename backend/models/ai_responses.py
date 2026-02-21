@@ -5,6 +5,7 @@ Used with LiteLLM's response_format for guaranteed JSON structure.
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
 from .document import TopicRelevance, ContentIndicators, KeyEntities, StakeholderSentiment
+from .brd import Citation, Conflict
 
 
 class DocumentClassificationResponse(BaseModel):
@@ -57,33 +58,15 @@ class RequirementsExtractionResponse(BaseModel):
     requirements: List[RequirementResponse]
 
 
-class ConflictResponse(BaseModel):
-    """Single conflict detected - matches Conflict model exactly."""
-    conflict_type: str = Field(description="specification, technical, timeline, resource, business_logic")
-    description: str
-    affected_requirements: List[str] = Field(description="List of req_ids involved in conflict")
-    severity: str = Field(description="high, medium, or low")
-    sources: List[str] = Field(description="List of doc_ids where requirements came from")
-
-
 class ConflictDetectionResponse(BaseModel):
     """Response model for conflict detection."""
-    conflicts: List[ConflictResponse]
-
-
-class CitationResponse(BaseModel):
-    """Citation for BRD section - matches Citation model exactly."""
-    doc_id: str
-    chunk_id: str
-    filename: str
-    quote: str
-    relevance_score: float = Field(ge=0.0, le=1.0)
+    conflicts: List[Conflict] = Field(default_factory=list, description="List of detected conflicts")
 
 
 class BRDSectionResponse(BaseModel):
     """Response model for BRD section generation."""
     content: str = Field(description="Markdown formatted content")
-    citations: List[CitationResponse]
+    citations: List[Citation] = Field(default_factory=list, description="List of citations")
 
 
 class RelevantDocument(BaseModel):
