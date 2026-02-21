@@ -9,9 +9,10 @@ interface Section {
 
 const SECTIONS: Section[] = [
   { key: 'executive_summary', label: 'Executive Summary' },
+  { key: 'project_background', label: 'Project Background' },
   { key: 'business_objectives', label: 'Business Objectives' },
   { key: 'stakeholders', label: 'Stakeholders' },
-  { key: 'scope', label: 'Scope' },
+  { key: 'project_scope', label: 'Scope' },
   { key: 'functional_requirements', label: 'Functional Requirements' },
   { key: 'non_functional_requirements', label: 'Non-Functional Requirements' },
   { key: 'user_stories', label: 'User Stories' },
@@ -20,7 +21,11 @@ const SECTIONS: Section[] = [
   { key: 'security_requirements', label: 'Security Requirements' },
   { key: 'assumptions', label: 'Assumptions' },
   { key: 'constraints', label: 'Constraints' },
+  { key: 'success_metrics', label: 'Success Metrics' },
+  { key: 'timeline', label: 'Timeline' },
+  { key: 'dependencies', label: 'Dependencies' },
   { key: 'risks', label: 'Risks' },
+  { key: 'cost_benefit', label: 'Cost-Benefit Analysis' },
 ]
 
 interface BRDSectionTabsProps {

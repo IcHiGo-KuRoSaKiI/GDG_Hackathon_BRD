@@ -11,6 +11,8 @@ export interface BRDSection {
   }>
 }
 
+export type ConflictStatus = 'open' | 'resolved' | 'accepted' | 'deferred'
+
 export interface Conflict {
   id: string
   conflict_type: string
@@ -18,6 +20,7 @@ export interface Conflict {
   description: string
   affected_requirements: string[]
   sources: string[]
+  status?: ConflictStatus
 }
 
 export interface SentimentAnalysis {
@@ -105,12 +108,13 @@ function transformSection(raw: any): BRDSection | undefined {
 function transformConflicts(raw?: any[]): Conflict[] | undefined {
   if (!raw || raw.length === 0) return undefined
   return raw.map((c, i) => ({
-    id: c.id ?? String(i + 1),
+    id: c.id ?? String(i),
     conflict_type: c.conflict_type ?? 'unknown',
     severity: c.severity ?? 'medium',
     description: c.description ?? '',
     affected_requirements: c.affected_requirements ?? [],
     sources: c.sources ?? [],
+    status: c.status as ConflictStatus | undefined,
   }))
 }
 
@@ -222,6 +226,19 @@ export async function updateBRDSection(
     { content }
   )
   return transformSection(response.data)
+}
+
+export async function updateConflictStatus(
+  projectId: string,
+  brdId: string,
+  conflictIndex: number,
+  status: ConflictStatus,
+  resolution?: string
+): Promise<void> {
+  await apiClient.patch(
+    `/projects/${projectId}/brds/${brdId}/conflicts/${conflictIndex}/status`,
+    { status, resolution: resolution ?? null }
+  )
 }
 
 export async function deleteBRD(projectId: string, brdId: string): Promise<void> {

@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import List
 import logging
 
-from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, User, ChatRequest, ChatResponse
+from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, UpdateConflictStatusRequest, User, ChatRequest, ChatResponse
 from ..models.brd import BRDSectionEnum
 from ..services.agent_service import agent_service
 from ..services.firestore_service import firestore_service
@@ -252,6 +252,46 @@ async def update_brd_section(
     except Exception as e:
         logger.error(f"Failed to update BRD section: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to update section: {str(e)}")
+
+
+@router.patch("/{brd_id}/conflicts/{conflict_index}/status")
+async def update_conflict_status(
+    project_id: str,
+    brd_id: str,
+    conflict_index: int,
+    request: UpdateConflictStatusRequest,
+):
+    """
+    Update a conflict's status (and optional resolution text).
+
+    Args:
+        project_id: Project ID
+        brd_id: BRD ID containing the conflict
+        conflict_index: 0-based index of the conflict in the conflicts array
+        request: New status and optional resolution text
+    """
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_brd_id(brd_id):
+        raise HTTPException(status_code=400, detail="Invalid BRD ID format")
+
+    # Verify BRD exists and belongs to project
+    brd = await firestore_service.get_brd(brd_id)
+    if not brd:
+        raise HTTPException(status_code=404, detail=f"BRD {brd_id} not found")
+    if brd.project_id != project_id:
+        raise HTTPException(status_code=404, detail=f"BRD {brd_id} not found in project {project_id}")
+
+    try:
+        updated = await firestore_service.update_conflict_status(
+            brd_id, conflict_index, request.status.value, request.resolution
+        )
+        return updated
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to update conflict status: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to update conflict status: {str(e)}")
 
 
 @router.post("/{brd_id}/refine-text", response_model=RefineTextResponse)

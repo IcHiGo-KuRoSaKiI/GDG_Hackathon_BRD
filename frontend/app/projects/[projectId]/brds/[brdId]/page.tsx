@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Download, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getBRD, updateBRDSection, BRD } from '@/lib/api/brds'
+import { getBRD, updateBRDSection, updateConflictStatus, BRD, Conflict, ConflictStatus } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
 import { BRDSection } from '@/components/brd/BRDSection'
 import { ConflictPanel } from '@/components/brd/ConflictPanel'
@@ -13,6 +13,7 @@ import { RefineChatPanel } from '@/components/brd/RefineChatPanel'
 import { useTextSelection } from '@/hooks/useTextSelection'
 import { useRefineText } from '@/hooks/useRefineText'
 import { formatRelativeTime } from '@/lib/utils/formatters'
+import { requirementToSectionKey } from '@/lib/utils/sectionMapping'
 import Link from 'next/link'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -50,12 +51,23 @@ export default function BRDViewerPage() {
   const refineSelectedTextRef = useRef('')
   const refineSectionKeyRef = useRef('')
 
+  // Track which conflict is being AI-resolved (so we can auto-update status on accept)
+  const resolvingConflictRef = useRef<{ conflict: Conflict; index: number } | null>(null)
+
   const selection = useTextSelection(contentEl)
   const refine = useRefineText({ projectId, brdId })
 
   useEffect(() => {
     loadBRD()
   }, [projectId, brdId])
+
+  // Build conflict statuses from backend data
+  const conflictStatuses: Record<string, ConflictStatus> = {}
+  if (brd?.conflicts) {
+    brd.conflicts.forEach((c) => {
+      if (c.status) conflictStatuses[c.id] = c.status
+    })
+  }
 
   const loadBRD = async () => {
     try {
@@ -127,10 +139,33 @@ export default function BRDViewerPage() {
         }
       })
 
-      // Keep sidebar open — clear refinement state, add confirmation
+      // If we were resolving a conflict, auto-mark it as resolved
+      if (resolvingConflictRef.current) {
+        const { index } = resolvingConflictRef.current
+        try {
+          await updateConflictStatus(projectId, brdId, index, 'resolved', refine.latestRefinedText)
+          // Update local state so the UI reflects the change immediately
+          setBRD((prev) => {
+            if (!prev || !prev.conflicts) return prev
+            const updatedConflicts = [...prev.conflicts]
+            if (updatedConflicts[index]) {
+              updatedConflicts[index] = { ...updatedConflicts[index], status: 'resolved' }
+            }
+            return { ...prev, conflicts: updatedConflicts }
+          })
+          refine.addSystemMessage('Changes saved — conflict marked as resolved')
+        } catch (err) {
+          console.error('Failed to update conflict status:', err)
+          refine.addSystemMessage('Changes saved (conflict status update failed)')
+        }
+        resolvingConflictRef.current = null
+      } else {
+        refine.addSystemMessage('Changes saved')
+      }
+
+      // Keep sidebar open — clear refinement state
       refineSelectedTextRef.current = ''
       refine.clearRefinement()
-      refine.addSystemMessage('Changes saved')
     } catch (err: any) {
       console.error('Failed to save section:', err)
     } finally {
@@ -162,6 +197,75 @@ export default function BRDViewerPage() {
   const handleToggleChat = useCallback(() => {
     setChatOpen((prev) => !prev)
   }, [])
+
+  // Resolve conflict with AI — open chat pre-loaded with conflict context
+  const handleResolveConflict = useCallback(
+    (conflict: Conflict) => {
+      // Track which conflict we're resolving (for auto-status on accept)
+      const conflictIndex = brd?.conflicts?.findIndex((c) => c.id === conflict.id) ?? -1
+      resolvingConflictRef.current = conflictIndex >= 0 ? { conflict, index: conflictIndex } : null
+
+      const contextText = [
+        `Conflict Type: ${conflict.conflict_type}`,
+        `Severity: ${conflict.severity}`,
+        `Description: ${conflict.description}`,
+        `Affected Requirements: ${conflict.affected_requirements.join(', ')}`,
+      ].join('\n')
+
+      // Find the best section to set as context
+      const sectionKey =
+        conflict.affected_requirements
+          .map((r) => requirementToSectionKey(r))
+          .find(Boolean) || activeSection
+
+      refineSelectedTextRef.current = contextText
+      refineSectionKeyRef.current = sectionKey
+      refine.initSession(contextText, sectionKey, 'refine')
+      setChatOpen(true)
+
+      // Auto-send a resolution request
+      refine.sendMessage(
+        `Help me resolve this ${conflict.severity}-severity ${conflict.conflict_type} conflict: "${conflict.description}". The affected requirements are: ${conflict.affected_requirements.join(', ')}. Suggest how to resolve this contradiction in the BRD.`,
+        sectionKey
+      )
+    },
+    [refine, activeSection, brd]
+  )
+
+  // Navigate to a BRD section (from conflict requirement badge click)
+  const handleNavigateToSection = useCallback(
+    (sectionKey: string) => {
+      setActiveSection(sectionKey)
+      // Scroll the content into view — contentEl is inside the scrollable parent
+      requestAnimationFrame(() => {
+        contentEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    },
+    [contentEl]
+  )
+
+  // Update conflict status (persisted to Firestore)
+  const handleConflictStatusChange = useCallback(
+    async (conflictId: string, status: ConflictStatus) => {
+      const index = brd?.conflicts?.findIndex((c) => c.id === conflictId) ?? -1
+      if (index < 0) return
+
+      // Optimistic local update
+      setBRD((prev) => {
+        if (!prev || !prev.conflicts) return prev
+        const updated = [...prev.conflicts]
+        updated[index] = { ...updated[index], status }
+        return { ...prev, conflicts: updated }
+      })
+
+      try {
+        await updateConflictStatus(projectId, brdId, index, status)
+      } catch (err) {
+        console.error('Failed to persist conflict status:', err)
+      }
+    },
+    [brd, projectId, brdId]
+  )
 
   const handleExport = () => {
     if (!brd || !brd.sections) return
@@ -223,8 +327,8 @@ export default function BRDViewerPage() {
 
   return (
     <div className="h-screen flex flex-col">
-      {/* Header */}
-      <div className="px-8 pt-8 pb-0 shrink-0">
+      {/* Fixed header: title bar only */}
+      <div className="px-8 pt-8 pb-4 shrink-0">
         <Link href={`/projects/${projectId}`}>
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -252,42 +356,51 @@ export default function BRDViewerPage() {
             </Button>
           </div>
         </div>
-
-        {/* Conflicts Panel */}
-        {brd.conflicts && brd.conflicts.length > 0 && (
-          <div className="mt-6">
-            <ConflictPanel conflicts={brd.conflicts} />
-          </div>
-        )}
-
-        {/* Section Tabs */}
-        <div className="mt-6 mb-0">
-          <BRDSectionTabs
-            activeSection={activeSection}
-            onSectionChange={setActiveSection}
-            availableSections={availableSections}
-          />
-        </div>
       </div>
 
-      {/* Main content area — flex row */}
+      {/* Main area — flex row */}
       <div className="flex flex-1 min-h-0">
-        {/* BRD content — scrollable */}
-        <div className="flex-1 min-w-0 overflow-y-auto px-8 py-6 relative" ref={setContentEl}>
-          <BRDSection
-            section={brd.sections?.[activeSection as keyof typeof brd.sections]}
-            title={SECTION_TITLES[activeSection] || activeSection}
-            sectionKey={activeSection}
-          />
-
-          {/* Floating Refine Toolbar */}
-          {selection.isActive && !chatOpen && (
-            <RefineToolbar
-              position={selection.toolbarPosition}
-              mode={selection.mode}
-              onRefine={handleOpenRefine}
-            />
+        {/* Left column: scrollable with conflict panel + sticky tabs + content */}
+        <div className="flex-1 min-w-0 overflow-y-auto">
+          {/* Conflicts Panel — scrolls with content */}
+          {brd.conflicts && brd.conflicts.length > 0 && (
+            <div className="px-8 mb-4">
+              <ConflictPanel
+                conflicts={brd.conflicts}
+                onResolveWithAI={handleResolveConflict}
+                onNavigateToSection={handleNavigateToSection}
+                onStatusChange={handleConflictStatusChange}
+                conflictStatuses={conflictStatuses}
+              />
+            </div>
           )}
+
+          {/* Section Tabs — sticky so they stay visible while scrolling */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-8 py-2 border-b">
+            <BRDSectionTabs
+              activeSection={activeSection}
+              onSectionChange={setActiveSection}
+              availableSections={availableSections}
+            />
+          </div>
+
+          {/* BRD content */}
+          <div className="px-8 py-6 relative" ref={setContentEl}>
+            <BRDSection
+              section={brd.sections?.[activeSection as keyof typeof brd.sections]}
+              title={SECTION_TITLES[activeSection] || activeSection}
+              sectionKey={activeSection}
+            />
+
+            {/* Floating Refine Toolbar */}
+            {selection.isActive && !chatOpen && (
+              <RefineToolbar
+                position={selection.toolbarPosition}
+                mode={selection.mode}
+                onRefine={handleOpenRefine}
+              />
+            )}
+          </div>
         </div>
 
         {/* Chat Sidebar */}

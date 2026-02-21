@@ -383,6 +383,50 @@ class FirestoreService:
         data = doc.to_dict()
         return data.get(section_key, {})
 
+    async def update_conflict_status(
+        self, brd_id: str, conflict_index: int, status: str, resolution: str | None = None
+    ) -> dict:
+        """
+        Update a single conflict's status within a BRD.
+
+        Firestore arrays can't be updated by index, so we read the full
+        conflicts list, patch the target item, and write it back.
+
+        Args:
+            brd_id: BRD document ID
+            conflict_index: 0-based index into the conflicts array
+            status: New status value
+            resolution: Optional resolution text
+
+        Returns:
+            The updated conflict dict
+
+        Raises:
+            ValueError: If index is out of range
+        """
+        doc_ref = self.client.collection('brds').document(brd_id)
+        doc = await doc_ref.get()
+        if not doc.exists:
+            raise ValueError(f"BRD {brd_id} not found")
+
+        data = doc.to_dict()
+        conflicts = data.get('conflicts', [])
+
+        if conflict_index < 0 or conflict_index >= len(conflicts):
+            raise ValueError(
+                f"Conflict index {conflict_index} out of range (0-{len(conflicts) - 1})"
+            )
+
+        conflicts[conflict_index]['status'] = status
+        if resolution is not None:
+            conflicts[conflict_index]['resolution'] = resolution
+
+        await doc_ref.update({
+            'conflicts': conflicts,
+            'updated_at': datetime.utcnow().isoformat(),
+        })
+        return conflicts[conflict_index]
+
     async def delete_brd(self, brd_id: str) -> None:
         """
         Delete a BRD from Firestore.

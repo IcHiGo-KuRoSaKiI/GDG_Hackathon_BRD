@@ -25,6 +25,14 @@ class BRDSection(BaseModel):
     subsections: Optional[Dict[str, str]] = None  # For structured sections
 
 
+class ConflictStatusEnum(str, Enum):
+    """Status of a detected conflict."""
+    OPEN = "open"
+    RESOLVED = "resolved"
+    ACCEPTED = "accepted"
+    DEFERRED = "deferred"
+
+
 class Conflict(BaseModel):
     """Detected requirement conflict."""
     conflict_type: str  # "budget", "timeline", "technical", "scope", etc.
@@ -32,6 +40,8 @@ class Conflict(BaseModel):
     affected_requirements: List[str]
     severity: str = Field(..., pattern="^(high|medium|low)$")
     sources: List[str]  # doc_ids
+    status: ConflictStatusEnum = ConflictStatusEnum.OPEN
+    resolution: Optional[str] = None  # AI resolution text when resolved
 
 
 class Sentiment(BaseModel):
@@ -81,6 +91,12 @@ class BRD(BaseModel):
         json_encoders = {
             datetime: lambda v: v.isoformat()
         }
+
+
+class UpdateConflictStatusRequest(BaseModel):
+    """Request to update a conflict's status."""
+    status: ConflictStatusEnum
+    resolution: Optional[str] = None
 
 
 class BRDGenerateRequest(BaseModel):
