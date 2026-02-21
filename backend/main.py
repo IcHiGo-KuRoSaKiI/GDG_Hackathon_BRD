@@ -19,9 +19,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Import routes
-from routes import projects_router, documents_router, brds_router
-from config import settings
+# Import routes (absolute imports for running as module)
+from backend.routes import projects_router, documents_router, brds_router
+from backend.config import settings
 
 # Create FastAPI app
 app = FastAPI(
@@ -33,7 +33,7 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins,
+    allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
