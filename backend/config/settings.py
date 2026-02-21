@@ -32,7 +32,12 @@ class Settings(BaseSettings):
     chunk_overlap: int = 100  # Words overlap between chunks
 
     class Config:
-        env_file = ".env"
+        # Look for .env in project root (parent of backend/)
+        import os
+        from pathlib import Path
+        backend_dir = Path(__file__).parent.parent
+        project_root = backend_dir.parent
+        env_file = str(project_root / ".env")
         case_sensitive = False
 
 
