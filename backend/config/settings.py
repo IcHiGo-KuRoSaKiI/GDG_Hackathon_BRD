@@ -17,9 +17,14 @@ class Settings(BaseSettings):
 
     # Gemini AI Configuration
     gemini_api_key: str
-    gemini_model: str = "gemini-2.0-flash-exp"
+    gemini_model: str = "gemini-1.5-pro-002"
     gemini_temperature: float = 0.2
     gemini_max_retries: int = 3
+
+    # JWT Authentication Configuration
+    jwt_secret_key: str = "your-secret-key-change-in-production"  # Override in .env
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_hours: int = 24
 
     # Server Configuration
     port: int = 8080

@@ -1,8 +1,8 @@
 """
 FastAPI authentication dependency.
-Extracts and validates Firebase token from Authorization header.
+Extracts and validates JWT token from Authorization header.
 """
-from fastapi import HTTPException, Security, Depends
+from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional
 import logging
@@ -23,7 +23,7 @@ async def get_current_user(
     Dependency to get current authenticated user.
 
     Extracts token from Authorization: Bearer <token> header,
-    verifies with Firebase, and returns user.
+    verifies JWT, and returns user.
 
     Args:
         credentials: HTTP Bearer credentials
@@ -46,7 +46,7 @@ async def get_current_user(
         )
 
     try:
-        # Verify token and get user
+        # Verify JWT token and get user
         user = await auth_service.verify_token(credentials.credentials)
         return user
 

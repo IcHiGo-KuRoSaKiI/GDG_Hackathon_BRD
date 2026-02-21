@@ -94,7 +94,7 @@ async def list_projects(user: User = Depends(get_current_user)):
         # Fetch user's projects from Firestore
         query = firestore_service.client.collection('projects').where(
             'user_id', '==', user.user_id
-        ).order_by('created_at', direction='DESCENDING')
+        )
 
         projects = []
         async for doc in query.stream():

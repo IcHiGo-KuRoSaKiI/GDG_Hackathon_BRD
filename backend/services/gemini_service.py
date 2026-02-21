@@ -41,11 +41,10 @@ class GeminiService:
             Exception: If generation failed after retries
         """
         try:
-            # Use LiteLLM's async completion with built-in retries
-            response = await acompletion(
+            # Use router's async completion with built-in retries
+            response = await self.router.acompletion(
                 model="gemini-flash",  # Friendly name from router config
-                messages=[{"role": "user", "content": prompt}],
-                router=self.router
+                messages=[{"role": "user", "content": prompt}]
             )
 
             # Extract text from response

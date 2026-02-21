@@ -18,14 +18,14 @@ async def register(user_data: UserCreate):
     """
     Register a new user.
 
-    Creates user in Firebase Auth and Firestore.
-    Returns authentication token for immediate login.
+    Creates user in Firestore with hashed password.
+    Returns JWT token for immediate login.
 
     Args:
         user_data: User registration data (email, password, display_name)
 
     Returns:
-        AuthToken with Firebase custom token and user info
+        AuthToken with JWT and user info
 
     Raises:
         400: If email already exists or validation fails
@@ -39,6 +39,35 @@ async def register(user_data: UserCreate):
         logger.error(f"Registration failed: {e}")
         raise HTTPException(
             status_code=400,
+            detail=str(e)
+        )
+
+
+@router.post("/login", response_model=AuthToken)
+async def login(login_data: UserLogin):
+    """
+    Login with email and password.
+
+    Verifies credentials and returns JWT token.
+
+    Args:
+        login_data: Login credentials (email, password)
+
+    Returns:
+        AuthToken with JWT and user info
+
+    Raises:
+        401: If credentials are invalid
+    """
+    try:
+        token = await auth_service.login_user(login_data)
+        logger.info(f"User logged in: {token.user.email}")
+        return token
+
+    except Exception as e:
+        logger.error(f"Login failed: {e}")
+        raise HTTPException(
+            status_code=401,
             detail=str(e)
         )
 

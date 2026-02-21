@@ -5,6 +5,7 @@ Async CRUD operations for all entities.
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from google.cloud.firestore_v1 import AsyncClient
+from google.cloud.firestore import Increment
 from ..config import firestore_client
 from ..models import Project, Document, BRD, Chunk
 
@@ -84,7 +85,7 @@ class FirestoreService:
         await doc_ref.set(document.model_dump(mode='json'))
 
         # Increment project document count
-        await self.update_project(document.project_id, {'document_count': firestore_client.field('document_count').increment(1)})
+        await self.update_project(document.project_id, {'document_count': Increment(1)})
 
     async def get_document(self, doc_id: str) -> Optional[Document]:
         """
@@ -199,7 +200,7 @@ class FirestoreService:
         await doc_ref.set(brd.model_dump(mode='json'))
 
         # Increment project BRD count
-        await self.update_project(brd.project_id, {'brd_count': firestore_client.field('brd_count').increment(1)})
+        await self.update_project(brd.project_id, {'brd_count': Increment(1)})
 
     async def get_brd(self, brd_id: str) -> Optional[BRD]:
         """
