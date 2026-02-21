@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { refineText } from '@/lib/api/brds'
+import { chatMessage, ResponseType } from '@/lib/api/brds'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -19,9 +19,9 @@ export interface UseRefineTextReturn {
   messages: ChatMessage[]
   isLoading: boolean
   latestRefinedText: string | null
+  latestResponseType: ResponseType | null
   hasActiveRefinement: boolean
-  sendPrompt: (instruction: string) => Promise<void>
-  sendChat: (message: string, sectionKey: string) => Promise<void>
+  sendMessage: (message: string, sectionKey: string) => Promise<void>
   initSession: (selectedText: string, sectionKey: string, mode: 'refine' | 'generate') => void
   addSystemMessage: (content: string) => void
   clearRefinement: () => void
@@ -29,11 +29,12 @@ export interface UseRefineTextReturn {
 }
 
 /**
- * Manages persistent chat state for BRD refinement and general queries.
+ * Manages persistent chat state for unified BRD interaction.
  *
- * Supports two interaction modes:
- * 1. Refine: user selects text → initSession → sendPrompt iterates on it
- * 2. Chat: user types a question → sendChat queries the BRD via agentic mode
+ * All messages go through the single /chat endpoint. The backend AI
+ * classifies responses as refinement/answer/generation via the
+ * submit_response virtual tool. Frontend uses response_type to
+ * decide UI behavior (Accept bar visibility).
  *
  * Messages persist across sidebar open/close. Only reset() clears history.
  */
@@ -44,27 +45,28 @@ export function useRefineText({
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [latestRefinedText, setLatestRefinedText] = useState<string | null>(null)
+  const [latestResponseType, setLatestResponseType] = useState<ResponseType | null>(null)
 
-  // Keep the original selected text and section key stable across turns
+  // Keep the original selected text stable across turns
   const originalTextRef = useRef('')
   const sectionKeyRef = useRef('')
-  const modeRef = useRef<'refine' | 'generate'>('refine')
 
-  const hasActiveRefinement = originalTextRef.current !== ''
+  // Accept bar shows when the last response was refinement or generation
+  const hasActiveRefinement =
+    latestResponseType === 'refinement' || latestResponseType === 'generation'
 
   const addSystemMessage = useCallback((content: string) => {
     setMessages((prev) => [...prev, { role: 'system', content, timestamp: new Date() }])
   }, [])
 
-  // Start a refine session — keeps existing messages, updates context
+  // Start a refine session — updates context, adds separator, keeps messages
   const initSession = useCallback(
     (selectedText: string, sectionKey: string, mode: 'refine' | 'generate') => {
       originalTextRef.current = selectedText
       sectionKeyRef.current = sectionKey
-      modeRef.current = mode
       setLatestRefinedText(null)
+      setLatestResponseType(null)
 
-      // Add a separator so the user sees the context switch
       const label = selectedText
         ? `Refining selected text in ${sectionKey.replace(/_/g, ' ')}`
         : `Generating content for ${sectionKey.replace(/_/g, ' ')}`
@@ -73,32 +75,37 @@ export function useRefineText({
     []
   )
 
-  // Send a refinement prompt (for active refine sessions)
-  const sendPrompt = useCallback(
-    async (instruction: string) => {
+  // Unified send — routes everything through the /chat endpoint
+  const sendMessage = useCallback(
+    async (message: string, sectionKey: string) => {
       const userMsg: ChatMessage = {
         role: 'user',
-        content: instruction,
+        content: message,
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, userMsg])
       setIsLoading(true)
 
       try {
-        const textToRefine = latestRefinedText ?? originalTextRef.current
+        // If we have a latest refined text from a previous turn, use that
+        // as the selected_text for iterative refinement
+        const selectedText = latestRefinedText ?? originalTextRef.current
 
-        const result = await refineText(projectId, brdId, {
-          selected_text: textToRefine,
-          instruction,
-          section_context: sectionKeyRef.current,
-          mode: modeRef.current === 'generate' ? 'agentic' : 'simple',
+        const result = await chatMessage(projectId, brdId, {
+          message,
+          section_context: sectionKey || sectionKeyRef.current,
+          selected_text: selectedText || undefined,
         })
 
-        setLatestRefinedText(result.refined)
+        // Update state based on response type
+        if (result.response_type === 'refinement' || result.response_type === 'generation') {
+          setLatestRefinedText(result.content)
+        }
+        setLatestResponseType(result.response_type)
 
         const assistantMsg: ChatMessage = {
           role: 'assistant',
-          content: result.refined,
+          content: result.content,
           timestamp: new Date(),
           sourcesUsed: result.sources_used,
         }
@@ -117,60 +124,17 @@ export function useRefineText({
     [projectId, brdId, latestRefinedText]
   )
 
-  // Send a general chat message (no text selection, uses agentic mode)
-  const sendChat = useCallback(
-    async (message: string, sectionKey: string) => {
-      // Clear any active refinement context so Accept bar doesn't show
-      originalTextRef.current = ''
-      sectionKeyRef.current = sectionKey
-      setLatestRefinedText(null)
-
-      const userMsg: ChatMessage = {
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-      }
-      setMessages((prev) => [...prev, userMsg])
-      setIsLoading(true)
-
-      try {
-        const result = await refineText(projectId, brdId, {
-          selected_text: '',
-          instruction: message,
-          section_context: sectionKey,
-          mode: 'agentic',
-        })
-
-        const assistantMsg: ChatMessage = {
-          role: 'assistant',
-          content: result.refined,
-          timestamp: new Date(),
-          sourcesUsed: result.sources_used,
-        }
-        setMessages((prev) => [...prev, assistantMsg])
-      } catch (err: any) {
-        const errorMsg: ChatMessage = {
-          role: 'assistant',
-          content: `Error: ${err.response?.data?.detail || err.message || 'Something went wrong'}`,
-          timestamp: new Date(),
-        }
-        setMessages((prev) => [...prev, errorMsg])
-      } finally {
-        setIsLoading(false)
-      }
-    },
-    [projectId, brdId]
-  )
-
   // Clear refinement tracking without wiping messages (used after Accept)
   const clearRefinement = useCallback(() => {
     setLatestRefinedText(null)
+    setLatestResponseType(null)
     originalTextRef.current = ''
   }, [])
 
   const reset = useCallback(() => {
     setMessages([])
     setLatestRefinedText(null)
+    setLatestResponseType(null)
     originalTextRef.current = ''
     sectionKeyRef.current = ''
   }, [])
@@ -179,9 +143,9 @@ export function useRefineText({
     messages,
     isLoading,
     latestRefinedText,
+    latestResponseType,
     hasActiveRefinement,
-    sendPrompt,
-    sendChat,
+    sendMessage,
     initSession,
     addSystemMessage,
     clearRefinement,

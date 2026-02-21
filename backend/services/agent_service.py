@@ -31,15 +31,20 @@ logger = logging.getLogger(__name__)
 
 
 class BRDAgentService:
-    """Service for BRD generation using REACT agent pattern."""
+    """
+    Service for BRD generation.
+
+    Delegates to the fully agentic BRD generation service where the AI
+    autonomously decides what documents to read and generates all sections
+    via virtual tool calls (submit_brd_section, submit_analysis).
+    """
 
     def __init__(self):
-        """Initialize agent service with tools."""
+        """Initialize agent service."""
+        # Legacy dependencies (kept for potential fallback)
         self.firestore = firestore_service
         self.storage = storage_service
         self.gemini = gemini_service
-
-        # Initialize agent tools
         self.tools = AgentTools(
             firestore_client=firestore_client,
             storage_client=storage_bucket.client
@@ -47,63 +52,14 @@ class BRDAgentService:
 
     async def generate_brd(self, project_id: str) -> BRD:
         """
-        Generate complete BRD using REACT pattern.
+        Generate complete BRD using fully agentic pipeline.
 
-        Args:
-            project_id: Project ID to generate BRD for
-
-        Returns:
-            Complete BRD with all 8 sections, citations, conflicts, and sentiment
+        Delegates to brd_generation_service which uses Gemini function
+        calling with virtual tools for structured output.
         """
-        logger.info(f"Starting BRD generation for project {project_id}")
-
-        # REACT Pattern
-        logger.info("PHASE 1: REASON - Analyzing relevant documents")
-        context = await self._reason_phase(project_id)
-
-        logger.info("PHASE 2: ACT - Extracting requirements")
-        requirements = await self._act_phase(context)
-
-        logger.info("PHASE 3: OBSERVE - Detecting conflicts and analyzing sentiment")
-        conflicts, sentiment = await self._observe_phase(requirements, context)
-
-        logger.info("PHASE 4: GENERATE - Creating BRD sections")
-        sections = await self._generate_sections(requirements, conflicts, sentiment, context)
-
-        # Assemble final BRD
-        brd_id = generate_brd_id()
-        brd = BRD(
-            brd_id=brd_id,
-            project_id=project_id,
-            generated_at=datetime.utcnow(),
-            document_count=len(context["relevant_documents"]),
-            total_citations=sum(len(s.citations) for s in sections.values()),
-            executive_summary=sections["executive_summary"],
-            project_background=sections["project_background"],
-            business_objectives=sections["business_objectives"],
-            project_scope=sections["project_scope"],
-            stakeholders=sections["stakeholders"],
-            functional_requirements=sections["functional_requirements"],
-            non_functional_requirements=sections["non_functional_requirements"],
-            dependencies=sections["dependencies"],
-            risks=sections["risks"],
-            assumptions=sections["assumptions"],
-            cost_benefit=sections["cost_benefit"],
-            success_metrics=sections["success_metrics"],
-            timeline=sections["timeline"],
-            conflicts=conflicts,
-            sentiment=sentiment,
-            generation_metadata={
-                "relevant_docs": len(context["relevant_documents"]),
-                "total_requirements": len(requirements),
-                "conflicts_detected": len(conflicts),
-                "sections_generated": 13,
-                "phases_completed": ["REASON", "ACT", "OBSERVE", "GENERATE"]
-            }
-        )
-
-        logger.info(f"BRD generation complete: {brd_id}")
-        return brd
+        from .brd_generation_service import brd_generation_service
+        logger.info(f"Delegating BRD generation to agentic pipeline for project {project_id}")
+        return await brd_generation_service.generate_brd(project_id)
 
     async def _reason_phase(self, project_id: str) -> Dict[str, Any]:
         """

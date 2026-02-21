@@ -227,3 +227,34 @@ export async function updateBRDSection(
 export async function deleteBRD(projectId: string, brdId: string): Promise<void> {
   await apiClient.delete(`/projects/${projectId}/brds/${brdId}`)
 }
+
+// ---------------------------------------------------------------------------
+// Unified agentic chat
+// ---------------------------------------------------------------------------
+
+export type ResponseType = 'refinement' | 'answer' | 'generation'
+
+export interface ChatMessageRequest {
+  message: string
+  section_context: string
+  selected_text?: string
+}
+
+export interface ChatMessageResponse {
+  content: string
+  response_type: ResponseType
+  sources_used?: string[]
+  tool_calls_made?: string[]
+}
+
+export async function chatMessage(
+  projectId: string,
+  brdId: string,
+  request: ChatMessageRequest
+): Promise<ChatMessageResponse> {
+  const response = await apiClient.post(
+    `/projects/${projectId}/brds/${brdId}/chat`,
+    request
+  )
+  return response.data
+}

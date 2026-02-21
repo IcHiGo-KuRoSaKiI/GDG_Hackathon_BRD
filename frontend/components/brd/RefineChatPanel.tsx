@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, Check, RotateCcw, Sparkles, PenLine, Loader2, MessageSquare, Plus } from 'lucide-react'
+import { X, Send, Check, RotateCcw, Sparkles, Loader2, MessageSquare, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -10,15 +10,13 @@ import { ChatMessage } from '@/hooks/useRefineText'
 
 interface RefineChatPanelProps {
   open: boolean
-  mode: 'refine' | 'generate'
   sectionTitle: string
   originalText: string
   messages: ChatMessage[]
   isLoading: boolean
   latestRefinedText: string | null
   hasActiveRefinement: boolean
-  onSendPrompt: (instruction: string) => void
-  onSendChat: (message: string) => void
+  onSendMessage: (message: string) => void
   onAccept: () => void
   onNewChat: () => void
   onClose: () => void
@@ -26,15 +24,13 @@ interface RefineChatPanelProps {
 
 export function RefineChatPanel({
   open,
-  mode,
   sectionTitle,
   originalText,
   messages,
   isLoading,
   latestRefinedText,
   hasActiveRefinement,
-  onSendPrompt,
-  onSendChat,
+  onSendMessage,
   onAccept,
   onNewChat,
   onClose,
@@ -58,13 +54,7 @@ export function RefineChatPanel({
   const handleSubmit = () => {
     const trimmed = input.trim()
     if (!trimmed || isLoading) return
-
-    // Route: refine mode → sendPrompt, general → sendChat
-    if (hasActiveRefinement) {
-      onSendPrompt(trimmed)
-    } else {
-      onSendChat(trimmed)
-    }
+    onSendMessage(trimmed)
     setInput('')
   }
 
@@ -86,19 +76,13 @@ export function RefineChatPanel({
       <div className="flex items-center justify-between p-4 border-b shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           {hasActiveRefinement ? (
-            mode === 'refine' ? (
-              <Sparkles className="h-4 w-4 text-primary shrink-0" />
-            ) : (
-              <PenLine className="h-4 w-4 text-primary shrink-0" />
-            )
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
           ) : (
             <MessageSquare className="h-4 w-4 text-primary shrink-0" />
           )}
           <div className="min-w-0">
             <h3 className="text-sm font-semibold truncate">
-              {hasActiveRefinement
-                ? mode === 'refine' ? 'Refine Text' : 'Generate Content'
-                : 'BRD Chat'}
+              {hasActiveRefinement ? 'Refine Text' : 'BRD Chat'}
             </h3>
             <p className="text-xs text-muted-foreground truncate">{sectionTitle}</p>
           </div>
@@ -120,7 +104,7 @@ export function RefineChatPanel({
       </div>
 
       {/* Original text (refine mode only) */}
-      {hasActiveRefinement && mode === 'refine' && originalText && (
+      {hasActiveRefinement && originalText && (
         <div className="p-3 mx-4 mt-3 rounded-md bg-muted/50 border text-xs shrink-0">
           <p className="text-muted-foreground font-medium mb-1">Selected text:</p>
           <p className="line-clamp-4">{originalText}</p>
@@ -133,23 +117,16 @@ export function RefineChatPanel({
           <div className="text-center text-muted-foreground text-sm py-8">
             <p className="mb-2">
               {hasActiveRefinement
-                ? mode === 'refine'
-                  ? 'Describe how you want to refine the selected text.'
-                  : 'Describe what content you want to generate.'
+                ? 'Describe how you want to refine the selected text.'
                 : 'Ask anything about this BRD.'}
             </p>
             <p className="text-xs">
-              {hasActiveRefinement
-                ? mode === 'generate'
-                  ? 'AI will search your project documents for context.'
-                  : 'You can iterate with multiple prompts until satisfied.'
-                : 'AI will search your project documents to answer questions.'}
+              AI will search your project documents for context.
             </p>
           </div>
         )}
 
         {messages.map((msg, i) => {
-          // System messages → centered muted separator
           if (msg.role === 'system') {
             return (
               <div key={i} className="flex justify-center">
@@ -200,9 +177,7 @@ export function RefineChatPanel({
           <div className="flex justify-start">
             <div className="bg-muted border rounded-lg p-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {hasActiveRefinement
-                ? mode === 'generate' ? 'Searching documents & generating...' : 'Refining...'
-                : 'Searching documents...'}
+              {hasActiveRefinement ? 'Refining...' : 'Searching documents...'}
             </div>
           </div>
         )}
@@ -210,7 +185,7 @@ export function RefineChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Accept bar (only during active refinement with results) */}
+      {/* Accept bar (only when AI returned refinement/generation) */}
       {hasActiveRefinement && latestRefinedText && !isLoading && (
         <div className="p-3 border-t bg-muted/30 shrink-0 flex items-center gap-2">
           <Button size="sm" className="gap-1.5 flex-1" onClick={onAccept}>
@@ -239,9 +214,7 @@ export function RefineChatPanel({
             onKeyDown={handleKeyDown}
             placeholder={
               hasActiveRefinement
-                ? mode === 'refine'
-                  ? 'e.g. "Make this more concise and professional"'
-                  : 'e.g. "Add security requirements covering OAuth and RBAC"'
+                ? 'e.g. "Make this more concise and professional"'
                 : 'Ask about this BRD...'
             }
             rows={2}

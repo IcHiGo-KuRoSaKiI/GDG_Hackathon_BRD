@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import List
 import logging
 
-from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, User
+from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, User, ChatRequest, ChatResponse
 from ..models.brd import BRDSectionEnum
 from ..services.agent_service import agent_service
 from ..services.firestore_service import firestore_service
@@ -389,3 +389,67 @@ async def refine_brd_text(
             status_code=500,
             detail=f"Text refinement failed: {str(e)}"
         )
+
+
+@router.post("/{brd_id}/chat", response_model=ChatResponse)
+async def chat_with_brd(
+    project_id: str,
+    brd_id: str,
+    request: ChatRequest,
+    user: User = Depends(get_current_user)
+):
+    """
+    Unified agentic chat for BRD interaction.
+
+    Supports text refinement (selected_text provided) and general questions
+    (selected_text empty). The AI classifies its response type, which drives
+    frontend UI behavior (e.g., showing Accept bar for refinements).
+
+    Args:
+        project_id: Project ID
+        brd_id: BRD being viewed
+        request: Chat request with message and optional selected_text
+        user: Authenticated user
+
+    Returns:
+        ChatResponse with AI-classified response_type
+    """
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_brd_id(brd_id):
+        raise HTTPException(status_code=400, detail="Invalid BRD ID format")
+
+    logger.info(
+        f"Chat request - User: {user.user_id}, "
+        f"Project: {project_id}, BRD: {brd_id}, "
+        f"Section: {request.section_context}"
+    )
+
+    try:
+        brd = await firestore_service.get_brd(brd_id)
+        if not brd:
+            raise HTTPException(status_code=404, detail=f"BRD {brd_id} not found")
+        if brd.project_id != project_id:
+            raise HTTPException(status_code=404, detail=f"BRD {brd_id} not found in project {project_id}")
+
+        result = await text_refinement_service.chat(project_id, brd_id, request)
+
+        logger.info(
+            f"Chat successful - Type: {result.response_type}, "
+            f"Sources: {len(result.sources_used)}"
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.warning(f"Chat validation failed - User: {user.user_id}, Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(
+            f"Chat failed - User: {user.user_id}, Project: {project_id}, "
+            f"BRD: {brd_id}, Error: {str(e)}",
+            exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")

@@ -1,9 +1,9 @@
 """
 Text Refinement Service - Inline BRD editing with AI assistance.
 
-Supports two modes:
-1. Simple: Direct text refinement (2-3 seconds)
-2. Agentic: AI uses tools to access project documents (4-8 seconds)
+Supports:
+1. Legacy refine_text: Simple/Agentic modes (backward compat)
+2. Unified chat: Single agentic pipeline with submit_response virtual tool
 
 Security: Defense-in-depth against prompt injection attacks.
 """
@@ -19,11 +19,20 @@ from ..models.brd import (
     RefineTextResponse,
     SimpleRefinementResult,
     AgenticGenerationResult,
-    TextRefinementMode
+    TextRefinementMode,
+    ChatRequest,
+    ChatResponse,
+    ResponseType,
 )
 from ..utils.prompts import prompts
 from ..utils.sanitization import escape_user_input
-from ..agent.tools import AGENT_TOOLS_SCHEMAS, ToolExecutor, AgentTools
+from ..agent.tools import (
+    AGENT_TOOLS_SCHEMAS,
+    UNIFIED_CHAT_TOOLS,
+    VIRTUAL_TOOLS,
+    ToolExecutor,
+    AgentTools,
+)
 from ..config.firebase import firestore_client, storage_bucket
 from ..config import genai_client, settings
 
@@ -61,6 +70,20 @@ class TextRefinementService:
                         parameters_json_schema=schema["parameters"],
                     )
                     for schema in AGENT_TOOLS_SCHEMAS
+                ]
+            )
+        ]
+
+        # Unified chat tools (document tools + submit_response virtual tool)
+        self._unified_chat_tools = [
+            types.Tool(
+                function_declarations=[
+                    types.FunctionDeclaration(
+                        name=schema["name"],
+                        description=schema["description"],
+                        parameters_json_schema=schema["parameters"],
+                    )
+                    for schema in UNIFIED_CHAT_TOOLS
                 ]
             )
         ]
@@ -373,6 +396,219 @@ class TextRefinementService:
         )
 
         return response
+
+    # ================================================================
+    # UNIFIED AGENTIC CHAT
+    # ================================================================
+
+    async def chat(
+        self,
+        project_id: str,
+        brd_id: str,
+        request: ChatRequest
+    ) -> ChatResponse:
+        """
+        Unified agentic chat — single pipeline for refinement, questions,
+        and content generation.
+
+        The AI always has access to document tools and classifies its own
+        response via the submit_response virtual tool.
+
+        Args:
+            project_id: Project ID for document access
+            brd_id: BRD ID being viewed
+            request: Chat request with message and optional selected_text
+
+        Returns:
+            ChatResponse with AI-classified response_type
+        """
+        logger.info(
+            f"Unified chat request - Project: {project_id}, "
+            f"Section: {request.section_context}, "
+            f"Has selection: {bool(request.selected_text)}"
+        )
+
+        # Layer 3 Security: Escape user inputs
+        escaped_message = escape_user_input(request.message)
+        escaped_text = escape_user_input(request.selected_text) if request.selected_text else ""
+
+        # Format unified chat prompt
+        prompt = prompts.format(
+            "unified_chat",
+            project_id=project_id,
+            section=request.section_context.value,
+            message=escaped_message,
+            selected_text=escaped_text,
+        )
+
+        try:
+            result = await self._execute_unified_workflow(prompt, project_id)
+
+            logger.info(
+                f"Unified chat successful - Type: {result['response_type']}, "
+                f"Sources: {len(result['sources_used'])}, "
+                f"Tool calls: {len(result['tool_calls'])}"
+            )
+
+            return ChatResponse(
+                content=result['content'],
+                response_type=ResponseType(result['response_type']),
+                sources_used=result['sources_used'],
+                tool_calls_made=result['tool_calls'],
+            )
+
+        except Exception as e:
+            logger.error(f"Unified chat failed: {e}", exc_info=True)
+            raise Exception(f"Chat failed: {str(e)}")
+
+    async def _execute_unified_workflow(
+        self,
+        initial_prompt: str,
+        project_id: str
+    ) -> Dict[str, Any]:
+        """
+        Execute unified agentic workflow with submit_response interception.
+
+        Same loop structure as _execute_agentic_workflow but:
+        1. Uses UNIFIED_CHAT_TOOLS (document tools + submit_response)
+        2. Intercepts submit_response virtual tool to extract structured response
+        3. Real tools execute normally via ToolExecutor
+
+        Args:
+            initial_prompt: Formatted prompt with escaped user inputs
+            project_id: Project ID for tool execution
+
+        Returns:
+            Dict with content, response_type, sources_used, tool_calls
+        """
+        messages = [types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)])]
+        sources_used = set()
+        tool_calls = []
+        max_iterations = 8
+
+        logger.info("Starting unified chat workflow")
+
+        for iteration in range(max_iterations):
+            logger.info(f"Unified chat iteration {iteration + 1}/{max_iterations}")
+
+            response = await asyncio.to_thread(
+                self._call_gemini_unified,
+                messages
+            )
+
+            candidate = response.candidates[0]
+
+            if candidate.content and candidate.content.parts:
+                has_function_calls = any(
+                    part.function_call is not None
+                    for part in candidate.content.parts
+                )
+
+                if has_function_calls:
+                    function_response_parts = []
+
+                    for part in candidate.content.parts:
+                        if part.function_call is not None:
+                            function_call = part.function_call
+                            logger.info(f"AI called tool: {function_call.name}")
+                            tool_calls.append(function_call.name)
+
+                            # Intercept virtual tools
+                            if function_call.name in VIRTUAL_TOOLS:
+                                args = dict(function_call.args)
+                                logger.info(
+                                    f"Virtual tool intercepted: {function_call.name} "
+                                    f"(response_type={args.get('response_type')})"
+                                )
+
+                                if function_call.name == "submit_response":
+                                    return {
+                                        'content': args.get('content', ''),
+                                        'response_type': args.get('response_type', 'answer'),
+                                        'sources_used': list(sources_used),
+                                        'tool_calls': [t for t in tool_calls if t not in VIRTUAL_TOOLS],
+                                    }
+
+                            # Execute real tools
+                            try:
+                                args = dict(function_call.args)
+                                if 'project_id' in args:
+                                    args['project_id'] = project_id
+
+                                result = await self.tool_executor.execute(
+                                    function_call.name,
+                                    args
+                                )
+
+                                # Track sources from document reads
+                                if function_call.name == "get_full_document_text":
+                                    if isinstance(result, dict) and 'filename' in result:
+                                        sources_used.add(result['filename'])
+                                elif function_call.name == "list_project_documents":
+                                    # Track filenames from document listing
+                                    if isinstance(result, list):
+                                        for doc in result:
+                                            if isinstance(doc, dict) and 'filename' in doc:
+                                                sources_used.add(doc['filename'])
+
+                                if not isinstance(result, dict):
+                                    result = {"result": str(result)}
+
+                                function_response_parts.append(
+                                    types.Part.from_function_response(
+                                        name=function_call.name,
+                                        response=result
+                                    )
+                                )
+
+                            except Exception as e:
+                                logger.error(f"Tool execution failed: {e}")
+                                function_response_parts.append(
+                                    types.Part.from_function_response(
+                                        name=function_call.name,
+                                        response={"error": str(e)}
+                                    )
+                                )
+
+                    # Only continue if we have function responses to feed back
+                    if function_response_parts:
+                        messages.append(candidate.content)
+                        messages.append(types.Content(role="user", parts=function_response_parts))
+                        continue
+
+            # No function calls — AI returned plain text (fallback)
+            logger.warning("AI returned plain text instead of calling submit_response")
+            final_text = ""
+            if candidate.content and candidate.content.parts:
+                final_text = candidate.content.parts[0].text or ""
+
+            return {
+                'content': final_text,
+                'response_type': 'answer',
+                'sources_used': list(sources_used),
+                'tool_calls': [t for t in tool_calls if t not in VIRTUAL_TOOLS],
+            }
+
+        logger.warning(f"Max iterations ({max_iterations}) reached in unified chat")
+        raise Exception("Maximum iterations reached without final response")
+
+    def _call_gemini_unified(self, messages: List) -> Any:
+        """Call Gemini with unified chat tools (document tools + submit_response)."""
+        return genai_client.models.generate_content(
+            model=self.model_name,
+            contents=messages,
+            config={
+                "tools": self._unified_chat_tools,
+                "temperature": 0.3,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 4096,
+            }
+        )
+
+    # ================================================================
+    # LEGACY STRUCTURED OUTPUT (kept for backward compat)
+    # ================================================================
 
     async def _generate_structured(
         self,

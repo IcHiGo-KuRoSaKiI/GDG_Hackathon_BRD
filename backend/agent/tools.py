@@ -367,6 +367,154 @@ AGENT_TOOLS_SCHEMAS = [
 
 
 # ============================================
+# Virtual Tool Schemas (intercepted, never executed)
+# ============================================
+# These tools are "virtual" — the AI calls them to return structured data,
+# but we intercept the call and extract the arguments instead of executing.
+
+SUBMIT_RESPONSE_SCHEMA = {
+    "name": "submit_response",
+    "description": (
+        "Submit your final response to the user. You MUST call this tool "
+        "exactly once to deliver your response. Do NOT return a plain text "
+        "response — always use this tool."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "content": {
+                "type": "string",
+                "description": "Your response text in markdown format"
+            },
+            "response_type": {
+                "type": "string",
+                "enum": ["refinement", "answer", "generation"],
+                "description": (
+                    "Classify your response: "
+                    "'refinement' = you modified/improved the user's selected text, "
+                    "'answer' = you answered a question about the BRD or project, "
+                    "'generation' = you created new content for a BRD section"
+                )
+            }
+        },
+        "required": ["content", "response_type"]
+    }
+}
+
+SUBMIT_BRD_SECTION_SCHEMA = {
+    "name": "submit_brd_section",
+    "description": (
+        "Submit a completed BRD section. Call this tool once for each section "
+        "you generate. You must generate all 13 sections."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "section_key": {
+                "type": "string",
+                "enum": [
+                    "executive_summary", "business_objectives", "stakeholders",
+                    "project_scope", "functional_requirements",
+                    "non_functional_requirements", "assumptions",
+                    "success_metrics", "timeline", "project_background",
+                    "dependencies", "risks", "cost_benefit"
+                ],
+                "description": "The BRD section identifier"
+            },
+            "title": {
+                "type": "string",
+                "description": "Human-readable section title"
+            },
+            "content": {
+                "type": "string",
+                "description": "Full section content in markdown format"
+            },
+            "citations": {
+                "type": "array",
+                "description": "Source citations from project documents",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "doc_id": {"type": "string", "description": "Document ID"},
+                        "filename": {"type": "string", "description": "Source filename"},
+                        "quote": {"type": "string", "description": "Exact quote from document"},
+                        "relevance_score": {"type": "number", "description": "0.0-1.0 relevance"}
+                    },
+                    "required": ["doc_id", "filename", "quote"]
+                }
+            }
+        },
+        "required": ["section_key", "title", "content"]
+    }
+}
+
+SUBMIT_ANALYSIS_SCHEMA = {
+    "name": "submit_analysis",
+    "description": (
+        "Submit conflict detection and sentiment analysis results. "
+        "Call this once after analyzing all documents. "
+        "Use comma-separated values for lists (affected_requirements, sources, key_concerns)."
+    ),
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "conflicts": {
+                "type": "array",
+                "description": "Detected requirement conflicts",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "conflict_type": {
+                            "type": "string",
+                            "description": "Type: budget, timeline, technical, scope, etc."
+                        },
+                        "description": {"type": "string"},
+                        "affected_requirements": {
+                            "type": "string",
+                            "description": "Comma-separated requirement IDs, e.g. 'NFR-01, NFR-02'"
+                        },
+                        "severity": {
+                            "type": "string",
+                            "enum": ["high", "medium", "low"]
+                        },
+                        "sources": {
+                            "type": "string",
+                            "description": "Comma-separated document IDs, e.g. 'doc_abc, doc_xyz'"
+                        }
+                    },
+                    "required": ["conflict_type", "description", "severity", "sources"]
+                }
+            },
+            "overall_sentiment": {
+                "type": "string",
+                "enum": ["positive", "neutral", "negative", "mixed", "concerned"]
+            },
+            "confidence": {
+                "type": "number",
+                "description": "Confidence score 0.0 to 1.0"
+            },
+            "stakeholder_sentiments": {
+                "type": "string",
+                "description": "Stakeholder sentiments as 'Name: sentiment' pairs separated by semicolons, e.g. 'Alice: positive; Bob: concerned'"
+            },
+            "key_concerns": {
+                "type": "string",
+                "description": "Key concerns separated by semicolons, e.g. 'Budget overrun risk; Timeline too aggressive'"
+            }
+        },
+        "required": ["conflicts", "overall_sentiment", "confidence"]
+    }
+}
+
+# Virtual tool names — these are intercepted, not executed
+VIRTUAL_TOOLS = {"submit_response", "submit_brd_section", "submit_analysis"}
+
+# Combined tool sets for different workflows
+UNIFIED_CHAT_TOOLS = AGENT_TOOLS_SCHEMAS + [SUBMIT_RESPONSE_SCHEMA]
+BRD_GENERATION_TOOLS = AGENT_TOOLS_SCHEMAS + [SUBMIT_BRD_SECTION_SCHEMA, SUBMIT_ANALYSIS_SCHEMA]
+
+
+# ============================================
 # Tool Executor for Gemini Function Calling
 # ============================================
 

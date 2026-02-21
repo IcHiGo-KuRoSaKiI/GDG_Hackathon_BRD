@@ -242,3 +242,84 @@ class AgenticGenerationResult(BaseModel):
         ...,
         description="Brief explanation of how the text was generated (2-3 sentences)"
     )
+
+
+# ============================================================================
+# UNIFIED CHAT MODELS (Agentic chat with virtual tool classification)
+# ============================================================================
+
+class ResponseType(str, Enum):
+    """AI-classified response type — drives frontend UI behavior."""
+    REFINEMENT = "refinement"   # Text was refined → show Accept bar
+    ANSWER = "answer"           # Question answered → no Accept bar
+    GENERATION = "generation"   # New content generated → show Accept bar
+
+
+class ChatRequest(BaseModel):
+    """
+    Request for unified agentic chat.
+
+    Supports both text refinement (selected_text provided) and
+    general questions (selected_text empty). The AI classifies its
+    own response via the submit_response virtual tool.
+    """
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=2000,
+        description="User's message or instruction"
+    )
+    section_context: BRDSectionEnum = Field(
+        ...,
+        description="Which BRD section the user is viewing"
+    )
+    selected_text: str = Field(
+        "",
+        max_length=5000,
+        description="Text selected for refinement (empty for general chat)"
+    )
+
+    @validator("message")
+    def validate_message_security(cls, v):
+        """Validate message for prompt injection attacks."""
+        import os
+        import importlib.util
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir = os.path.dirname(current_dir)
+        san_path = os.path.join(backend_dir, 'utils', 'sanitization.py')
+        spec = importlib.util.spec_from_file_location("sanitization", san_path)
+        san = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(san)
+        return san.validate_refinement_instruction(v)
+
+    @validator("selected_text")
+    def validate_selected_text_chat(cls, v):
+        """Validate selected text for malicious content."""
+        if not v:
+            return v
+        import os
+        import importlib.util
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        backend_dir = os.path.dirname(current_dir)
+        san_path = os.path.join(backend_dir, 'utils', 'sanitization.py')
+        spec = importlib.util.spec_from_file_location("sanitization", san_path)
+        san = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(san)
+        return san.validate_selected_text(v)
+
+
+class ChatResponse(BaseModel):
+    """Response from unified agentic chat."""
+    content: str = Field(..., description="The AI's response text (markdown)")
+    response_type: ResponseType = Field(
+        ...,
+        description="AI-classified response type"
+    )
+    sources_used: List[str] = Field(
+        default_factory=list,
+        description="Document filenames accessed during generation"
+    )
+    tool_calls_made: List[str] = Field(
+        default_factory=list,
+        description="Tool names called during generation"
+    )

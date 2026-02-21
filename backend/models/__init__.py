@@ -29,7 +29,11 @@ from .brd import (
     TextRefinementMode,
     BRDSectionEnum,
     SimpleRefinementResult,
-    AgenticGenerationResult
+    AgenticGenerationResult,
+    # Unified chat models
+    ResponseType,
+    ChatRequest,
+    ChatResponse
 )
 from .user import (
     User,
@@ -89,6 +93,10 @@ __all__ = [
     "BRDSectionEnum",
     "SimpleRefinementResult",
     "AgenticGenerationResult",
+    # Unified chat
+    "ResponseType",
+    "ChatRequest",
+    "ChatResponse",
     # User models
     "User",
     "UserCreate",

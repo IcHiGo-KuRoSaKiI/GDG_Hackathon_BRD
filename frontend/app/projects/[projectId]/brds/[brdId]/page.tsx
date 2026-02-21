@@ -49,7 +49,6 @@ export default function BRDViewerPage() {
   // Snapshot selection state when chat opens (selection gets cleared on open)
   const refineSelectedTextRef = useRef('')
   const refineSectionKeyRef = useRef('')
-  const refineModeRef = useRef<'refine' | 'generate'>('refine')
 
   const selection = useTextSelection(contentEl)
   const refine = useRefineText({ projectId, brdId })
@@ -83,7 +82,6 @@ export default function BRDViewerPage() {
   const handleOpenRefine = useCallback(() => {
     refineSelectedTextRef.current = selection.selectedText
     refineSectionKeyRef.current = selection.sectionKey || activeSection
-    refineModeRef.current = selection.mode
     refine.initSession(selection.selectedText, selection.sectionKey || activeSection, selection.mode)
     setChatOpen(true)
     selection.clearSelection()
@@ -149,14 +147,13 @@ export default function BRDViewerPage() {
   const handleNewChat = useCallback(() => {
     refineSelectedTextRef.current = ''
     refineSectionKeyRef.current = activeSection
-    refineModeRef.current = 'refine'
     refine.reset()
   }, [refine, activeSection])
 
-  // General chat — send a question about the BRD (no text selection)
-  const handleSendChat = useCallback(
+  // Unified send — everything goes through refine.sendMessage
+  const handleSendMessage = useCallback(
     (message: string) => {
-      refine.sendChat(message, activeSection)
+      refine.sendMessage(message, activeSection)
     },
     [refine, activeSection]
   )
@@ -296,15 +293,13 @@ export default function BRDViewerPage() {
         {/* Chat Sidebar */}
         <RefineChatPanel
           open={chatOpen}
-          mode={refineModeRef.current}
           sectionTitle={SECTION_TITLES[refineSectionKeyRef.current] || refineSectionKeyRef.current || SECTION_TITLES[activeSection] || activeSection}
           originalText={refineSelectedTextRef.current}
           messages={refine.messages}
           isLoading={refine.isLoading || saving}
           latestRefinedText={refine.latestRefinedText}
           hasActiveRefinement={refine.hasActiveRefinement}
-          onSendPrompt={refine.sendPrompt}
-          onSendChat={handleSendChat}
+          onSendMessage={handleSendMessage}
           onAccept={handleAccept}
           onNewChat={handleNewChat}
           onClose={handleCloseChat}
