@@ -45,7 +45,13 @@ export default function RegisterPage() {
       authStore.login(response.token, response.user)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.')
+      const detail = err.response?.data?.detail
+      const message = Array.isArray(detail)
+        ? detail.map((d: any) => d.msg).join(', ')
+        : typeof detail === 'string'
+          ? detail
+          : 'Registration failed. Please try again.'
+      setError(message)
     } finally {
       setLoading(false)
     }
