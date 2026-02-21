@@ -29,19 +29,23 @@ FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:${
 echo "=== Step 1: Ensure Artifact Registry repo exists ==="
 
 cd infra
-terraform init -upgrade
+terraform init -input=false > /dev/null 2>&1
 terraform apply -target=google_artifact_registry_repository.backend -auto-approve
 cd ..
 
 echo ""
 echo "=== Step 2: Build and push Docker image via Cloud Build ==="
 echo "Image: ${FULL_IMAGE}"
+echo "(Using kaniko cache for faster rebuilds)"
 echo ""
 
+# Use Cloud Build config with kaniko for Docker layer caching
+# This caches the pip install layer so only code changes rebuild fast
 gcloud builds submit \
   --project="${PROJECT_ID}" \
   --region="${REGION}" \
-  --tag="${FULL_IMAGE}" \
+  --config=cloudbuild.yaml \
+  --substitutions="_IMAGE=${FULL_IMAGE},_CACHE_REPO=${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/cache" \
   --timeout=600s \
   .
 

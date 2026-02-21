@@ -1,0 +1,35 @@
+# Ignore everything except what the Dockerfile needs
+# (backend/requirements.txt + backend/ source code)
+
+# Frontend (not part of backend image)
+frontend/
+node_modules/
+
+# Infrastructure / deployment (not needed in image)
+infra/
+deploy.sh
+
+# Sample data / docs
+sample-documents/
+docs/
+docs.zip
+*.zip
+*.md
+
+# Secrets (NEVER upload to Cloud Build)
+.env
+.env.*
+service-account-key.json
+*-service-account-key.json
+
+# Build artifacts / caches
+.git/
+backend/venv/
+backend/tests/
+**/__pycache__/
+**/*.pyc
+
+# IDE / OS
+.claude/
+.vscode/
+.DS_Store
