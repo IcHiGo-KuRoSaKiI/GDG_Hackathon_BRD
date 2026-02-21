@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Download, Loader2, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Download, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getBRD, updateBRDSection, updateConflictStatus, BRD, Conflict, ConflictStatus } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
@@ -43,6 +43,9 @@ export default function BRDViewerPage() {
   const [activeSection, setActiveSection] = useState('executive_summary')
   const [chatOpen, setChatOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [updatedSection, setUpdatedSection] = useState<string | null>(null)
+  const [isResolvingConflict, setIsResolvingConflict] = useState(false)
+  const updatedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Callback ref so useTextSelection re-runs when the element mounts after loading
   const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null)
@@ -60,6 +63,13 @@ export default function BRDViewerPage() {
   useEffect(() => {
     loadBRD()
   }, [projectId, brdId])
+
+  // Clean up update indicator timer
+  useEffect(() => {
+    return () => {
+      if (updatedTimerRef.current) clearTimeout(updatedTimerRef.current)
+    }
+  }, [])
 
   // Build conflict statuses from backend data
   const conflictStatuses: Record<string, ConflictStatus> = {}
@@ -112,14 +122,21 @@ export default function BRDViewerPage() {
       if (!currentSection) return
 
       let newContent: string
-      if (originalSelectedText && currentSection.content.includes(originalSelectedText)) {
+      const responseType = refine.latestResponseType
+
+      if (responseType === 'generation') {
+        // Generation mode — append new content to section
+        newContent = currentSection.content + '\n\n' + refine.latestRefinedText
+      } else if (originalSelectedText && currentSection.content.includes(originalSelectedText)) {
+        // Refinement with specific text selection — substring replace
         newContent = currentSection.content.replace(
           originalSelectedText,
           refine.latestRefinedText
         )
       } else {
-        // Generate mode or text not found — append to end of section
-        newContent = currentSection.content + '\n\n' + refine.latestRefinedText
+        // Refinement without matching selection (e.g., conflict resolution,
+        // or "apply" after brainstorming) — full section replacement
+        newContent = refine.latestRefinedText
       }
 
       await updateBRDSection(projectId, brdId, sectionKey, newContent)
@@ -138,6 +155,12 @@ export default function BRDViewerPage() {
           },
         }
       })
+
+      // Show visual update indicator on the section — auto-navigate if needed
+      setActiveSection(sectionKey)
+      setUpdatedSection(sectionKey)
+      if (updatedTimerRef.current) clearTimeout(updatedTimerRef.current)
+      updatedTimerRef.current = setTimeout(() => setUpdatedSection(null), 5000)
 
       // If we were resolving a conflict, auto-mark it as resolved
       if (resolvingConflictRef.current) {
@@ -159,6 +182,7 @@ export default function BRDViewerPage() {
           refine.addSystemMessage('Changes saved (conflict status update failed)')
         }
         resolvingConflictRef.current = null
+        setIsResolvingConflict(false)
       } else {
         refine.addSystemMessage('Changes saved')
       }
@@ -173,6 +197,32 @@ export default function BRDViewerPage() {
     }
   }, [refine, brd, projectId, brdId])
 
+  // Confirm & close a conflict without changing BRD text (already resolved)
+  const handleConfirmClose = useCallback(async () => {
+    if (!resolvingConflictRef.current) return
+    const { index } = resolvingConflictRef.current
+
+    try {
+      await updateConflictStatus(projectId, brdId, index, 'resolved')
+      setBRD((prev) => {
+        if (!prev || !prev.conflicts) return prev
+        const updatedConflicts = [...prev.conflicts]
+        if (updatedConflicts[index]) {
+          updatedConflicts[index] = { ...updatedConflicts[index], status: 'resolved' }
+        }
+        return { ...prev, conflicts: updatedConflicts }
+      })
+      refine.addSystemMessage('Conflict confirmed as resolved — no BRD changes needed')
+    } catch (err) {
+      console.error('Failed to update conflict status:', err)
+      refine.addSystemMessage('Failed to update conflict status')
+    }
+
+    resolvingConflictRef.current = null
+    setIsResolvingConflict(false)
+    refine.clearRefinement()
+  }, [projectId, brdId, refine])
+
   // Close sidebar — keep messages for when it reopens
   const handleCloseChat = useCallback(() => {
     setChatOpen(false)
@@ -182,6 +232,8 @@ export default function BRDViewerPage() {
   const handleNewChat = useCallback(() => {
     refineSelectedTextRef.current = ''
     refineSectionKeyRef.current = activeSection
+    resolvingConflictRef.current = null
+    setIsResolvingConflict(false)
     refine.reset()
   }, [refine, activeSection])
 
@@ -204,6 +256,7 @@ export default function BRDViewerPage() {
       // Track which conflict we're resolving (for auto-status on accept)
       const conflictIndex = brd?.conflicts?.findIndex((c) => c.id === conflict.id) ?? -1
       resolvingConflictRef.current = conflictIndex >= 0 ? { conflict, index: conflictIndex } : null
+      setIsResolvingConflict(conflictIndex >= 0)
 
       const contextText = [
         `Conflict Type: ${conflict.conflict_type}`,
@@ -385,7 +438,24 @@ export default function BRDViewerPage() {
           </div>
 
           {/* BRD content */}
-          <div className="px-8 py-6 relative" ref={setContentEl}>
+          <div
+            className={`px-8 py-6 relative transition-colors duration-700 ${
+              updatedSection === activeSection
+                ? 'bg-emerald-500/5'
+                : ''
+            }`}
+            ref={setContentEl}
+          >
+            {/* Update success banner */}
+            {updatedSection === activeSection && (
+              <div className="mb-4 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-2.5 animate-slide-in">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span className="font-medium">
+                  {SECTION_TITLES[activeSection] || activeSection} updated successfully
+                </span>
+              </div>
+            )}
+
             <BRDSection
               section={brd.sections?.[activeSection as keyof typeof brd.sections]}
               title={SECTION_TITLES[activeSection] || activeSection}
@@ -412,8 +482,10 @@ export default function BRDViewerPage() {
           isLoading={refine.isLoading || saving}
           latestRefinedText={refine.latestRefinedText}
           hasActiveRefinement={refine.hasActiveRefinement}
+          canConfirmClose={isResolvingConflict && !refine.hasActiveRefinement && refine.latestResponseType === 'answer' && !refine.isLoading && !saving}
           onSendMessage={handleSendMessage}
           onAccept={handleAccept}
+          onConfirmClose={handleConfirmClose}
           onNewChat={handleNewChat}
           onClose={handleCloseChat}
         />

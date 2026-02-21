@@ -1,12 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { X, Send, Check, RotateCcw, Sparkles, Loader2, MessageSquare, Plus } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { X, Send, Check, CheckCircle2, RotateCcw, Sparkles, Loader2, MessageSquare, Plus, GripVertical } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChatMessage } from '@/hooks/useRefineText'
+
+const MIN_WIDTH = 360
+const MAX_WIDTH = 800
+const DEFAULT_WIDTH = 520
 
 interface RefineChatPanelProps {
   open: boolean
@@ -16,8 +20,10 @@ interface RefineChatPanelProps {
   isLoading: boolean
   latestRefinedText: string | null
   hasActiveRefinement: boolean
+  canConfirmClose?: boolean
   onSendMessage: (message: string) => void
   onAccept: () => void
+  onConfirmClose?: () => void
   onNewChat: () => void
   onClose: () => void
 }
@@ -30,14 +36,47 @@ export function RefineChatPanel({
   isLoading,
   latestRefinedText,
   hasActiveRefinement,
+  canConfirmClose,
   onSendMessage,
   onAccept,
+  onConfirmClose,
   onNewChat,
   onClose,
 }: RefineChatPanelProps) {
   const [input, setInput] = useState('')
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const isDragging = useRef(false)
+
+  // Resize drag handler
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = true
+    const startX = e.clientX
+    const startWidth = width
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging.current) return
+      // Dragging left = wider panel (startX - e.clientX is positive)
+      const delta = startX - e.clientX
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startWidth + delta))
+      setWidth(newWidth)
+    }
+
+    const handleMouseUp = () => {
+      isDragging.current = false
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [width])
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -71,7 +110,20 @@ export function RefineChatPanel({
   if (!open) return null
 
   return (
-    <div className="w-[420px] shrink-0 border-l bg-background flex flex-col h-full">
+    <div
+      className="shrink-0 border-l bg-background flex flex-col h-full relative"
+      style={{ width: `${width}px` }}
+    >
+      {/* Resize handle */}
+      <div
+        onMouseDown={handleMouseDown}
+        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize z-20 group hover:bg-primary/20 active:bg-primary/30 transition-colors"
+        title="Drag to resize"
+      >
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-12 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b shrink-0">
         <div className="flex items-center gap-2 min-w-0">
@@ -143,14 +195,14 @@ export function RefineChatPanel({
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[90%] rounded-lg p-3 text-sm ${
+                className={`rounded-lg p-3 text-sm ${
                   msg.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted border'
+                    ? 'max-w-[85%] bg-primary text-primary-foreground'
+                    : 'w-full bg-muted border'
                 }`}
               >
                 {msg.role === 'assistant' ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <div className="prose prose-sm dark:prose-invert max-w-none overflow-x-auto">
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>
                       {msg.content}
                     </ReactMarkdown>
@@ -187,20 +239,53 @@ export function RefineChatPanel({
 
       {/* Accept bar (only when AI returned refinement/generation) */}
       {hasActiveRefinement && latestRefinedText && !isLoading && (
-        <div className="p-3 border-t bg-muted/30 shrink-0 flex items-center gap-2">
-          <Button size="sm" className="gap-1.5 flex-1" onClick={onAccept}>
-            <Check className="h-3.5 w-3.5" />
-            Accept & Replace
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => inputRef.current?.focus()}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Iterate
-          </Button>
+        <div className="px-3 py-3 border-t-2 border-primary/30 bg-primary/10 shrink-0 space-y-2">
+          <p className="text-xs text-primary font-medium px-1">
+            Ready to apply changes to the BRD
+          </p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="gap-1.5 flex-1" onClick={onAccept}>
+              <Check className="h-3.5 w-3.5" />
+              Accept & Replace
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => inputRef.current?.focus()}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Iterate
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm & Close bar (conflict already resolved, no BRD changes needed) */}
+      {canConfirmClose && onConfirmClose && (
+        <div className="px-3 py-3 border-t-2 border-emerald-500/30 bg-emerald-500/10 shrink-0 space-y-2">
+          <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium px-1">
+            AI verified — this conflict is already resolved in the BRD
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="gap-1.5 flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={onConfirmClose}
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirm & Close
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => inputRef.current?.focus()}
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Disagree
+            </Button>
+          </div>
         </div>
       )}
 

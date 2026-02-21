@@ -109,7 +109,18 @@ export function useRefineText({
           timestamp: new Date(),
           sourcesUsed: result.sources_used,
         }
-        setMessages((prev) => [...prev, assistantMsg])
+        setMessages((prev) => {
+          const updated = [...prev, assistantMsg]
+          // Add a hint when refinement is ready so user knows to click Accept
+          if (result.response_type === 'refinement' || result.response_type === 'generation') {
+            updated.push({
+              role: 'system',
+              content: 'Click "Accept & Replace" below to apply these changes to the BRD.',
+              timestamp: new Date(),
+            })
+          }
+          return updated
+        })
       } catch (err: any) {
         const errorMsg: ChatMessage = {
           role: 'assistant',
