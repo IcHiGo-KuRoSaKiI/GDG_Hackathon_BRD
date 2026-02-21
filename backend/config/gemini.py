@@ -1,44 +1,34 @@
 """
-Google Gemini AI configuration.
-Provides configured GenerativeModel for all AI operations.
+Google Gemini AI configuration via LiteLLM.
+Provides unified AI interface with retry logic and fallbacks.
 """
-import google.generativeai as genai
+import os
+from litellm import Router
 from .settings import settings
 
 
-# Configure Gemini API with API key
-genai.configure(api_key=settings.gemini_api_key)
+# Set Gemini API key in environment for LiteLLM
+os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 
-# Create GenerativeModel instance with configuration
-generation_config = {
-    "temperature": settings.gemini_temperature,
-    "top_p": 0.95,
-    "top_k": 40,
-    "max_output_tokens": 8192,
-}
-
-safety_settings = [
+# Configure LiteLLM router with Gemini
+# Using Router for built-in retry logic and fallbacks
+model_list = [
     {
-        "category": "HARM_CATEGORY_HARASSMENT",
-        "threshold": "BLOCK_NONE"
-    },
-    {
-        "category": "HARM_CATEGORY_HATE_SPEECH",
-        "threshold": "BLOCK_NONE"
-    },
-    {
-        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-        "threshold": "BLOCK_NONE"
-    },
-    {
-        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-        "threshold": "BLOCK_NONE"
-    },
+        "model_name": "gemini-flash",  # Friendly name
+        "litellm_params": {
+            "model": f"gemini/{settings.gemini_model}",
+            "api_key": settings.gemini_api_key,
+            "temperature": settings.gemini_temperature,
+            "top_p": 0.95,
+            "max_tokens": 8192,
+        }
+    }
 ]
 
-# Global GenerativeModel instance
-gemini_model = genai.GenerativeModel(
-    model_name=settings.gemini_model,
-    generation_config=generation_config,
-    safety_settings=safety_settings
+# Create router with retry configuration
+litellm_router = Router(
+    model_list=model_list,
+    num_retries=settings.gemini_max_retries,
+    timeout=120,  # 2 minutes timeout
+    fallbacks=[],  # Can add fallback models here if needed
 )

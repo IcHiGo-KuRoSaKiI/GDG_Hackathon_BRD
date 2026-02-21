@@ -1,13 +1,12 @@
 """
-Gemini AI service.
-All AI operations using Google Gemini API.
+Gemini AI service via LiteLLM.
+All AI operations using LiteLLM's unified interface with built-in retry logic.
 """
-import asyncio
 import json
 import logging
-from typing import Dict, List, Any, Optional
-from google.generativeai import GenerativeModel
-from ..config import gemini_model, settings
+from typing import Dict, List, Any
+from litellm import acompletion
+from ..config import litellm_router, settings
 from ..utils import prompts
 from ..models import (
     AIMetadata,
@@ -22,62 +21,39 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiService:
-    """Service for Gemini AI operations."""
+    """Service for Gemini AI operations via LiteLLM."""
 
-    def __init__(self, model: GenerativeModel = gemini_model):
-        """
-        Initialize Gemini service.
+    def __init__(self):
+        """Initialize Gemini service with LiteLLM router."""
+        self.router = litellm_router
 
-        Args:
-            model: Gemini GenerativeModel instance
+    async def _generate_with_retry(self, prompt: str) -> str:
         """
-        self.model = model
-
-    async def _generate_with_retry(
-        self,
-        prompt: str,
-        max_retries: int = None
-    ) -> str:
-        """
-        Generate content with exponential backoff retry.
+        Generate content using LiteLLM (retry logic built-in).
 
         Args:
             prompt: Prompt to send to Gemini
-            max_retries: Maximum retry attempts (default from settings)
 
         Returns:
             Generated text response
 
         Raises:
-            Exception: If all retries failed
+            Exception: If generation failed after retries
         """
-        if max_retries is None:
-            max_retries = settings.gemini_max_retries
+        try:
+            # Use LiteLLM's async completion with built-in retries
+            response = await acompletion(
+                model="gemini-flash",  # Friendly name from router config
+                messages=[{"role": "user", "content": prompt}],
+                router=self.router
+            )
 
-        def _generate():
-            response = self.model.generate_content(prompt)
-            return response.text
+            # Extract text from response
+            return response.choices[0].message.content
 
-        last_error = None
-        for attempt in range(max_retries):
-            try:
-                # Wrap sync Gemini call in thread pool
-                result = await asyncio.to_thread(_generate)
-                return result
-
-            except Exception as e:
-                last_error = e
-                logger.warning(f"Gemini API attempt {attempt + 1} failed: {e}")
-
-                if attempt < max_retries - 1:
-                    # Exponential backoff: 2^attempt seconds
-                    wait_time = 2 ** attempt
-                    logger.info(f"Retrying in {wait_time} seconds...")
-                    await asyncio.sleep(wait_time)
-
-        # All retries failed
-        logger.error(f"Gemini API failed after {max_retries} attempts")
-        raise Exception(f"Gemini API failed: {last_error}")
+        except Exception as e:
+            logger.error(f"LiteLLM generation failed: {e}", exc_info=True)
+            raise Exception(f"AI generation failed: {str(e)}")
 
     async def classify_document(
         self,
@@ -331,5 +307,5 @@ class GeminiService:
             }
 
 
-# Global service instance
+# Global service instance (no args needed, uses litellm_router)
 gemini_service = GeminiService()

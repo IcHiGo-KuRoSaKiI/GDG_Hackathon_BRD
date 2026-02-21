@@ -1,0 +1,359 @@
+"""
+BRD Agent Service - REACT Pattern Implementation.
+
+Implements the Reason-Act-Observe pattern for intelligent BRD generation:
+1. REASON: Analyze which documents are relevant
+2. ACT: Extract requirements from relevant documents
+3. OBSERVE: Detect conflicts and analyze sentiment
+4. GENERATE: Create BRD sections with citations
+"""
+import asyncio
+import json
+import logging
+from typing import Dict, List, Any
+from datetime import datetime
+
+from ..models import (
+    BRD,
+    BRDSection,
+    Citation,
+    Conflict,
+    Sentiment
+)
+from ..utils import generate_brd_id
+from .firestore_service import firestore_service
+from .storage_service import storage_service
+from .gemini_service import gemini_service
+from ..agent.tools import AgentTools
+from ..config import firestore_client, storage_bucket
+
+logger = logging.getLogger(__name__)
+
+
+class BRDAgentService:
+    """Service for BRD generation using REACT agent pattern."""
+
+    def __init__(self):
+        """Initialize agent service with tools."""
+        self.firestore = firestore_service
+        self.storage = storage_service
+        self.gemini = gemini_service
+
+        # Initialize agent tools
+        self.tools = AgentTools(
+            firestore_client=firestore_client,
+            storage_client=storage_bucket.client
+        )
+
+    async def generate_brd(self, project_id: str) -> BRD:
+        """
+        Generate complete BRD using REACT pattern.
+
+        Args:
+            project_id: Project ID to generate BRD for
+
+        Returns:
+            Complete BRD with all 8 sections, citations, conflicts, and sentiment
+        """
+        logger.info(f"Starting BRD generation for project {project_id}")
+
+        # REACT Pattern
+        logger.info("PHASE 1: REASON - Analyzing relevant documents")
+        context = await self._reason_phase(project_id)
+
+        logger.info("PHASE 2: ACT - Extracting requirements")
+        requirements = await self._act_phase(context)
+
+        logger.info("PHASE 3: OBSERVE - Detecting conflicts and analyzing sentiment")
+        conflicts, sentiment = await self._observe_phase(requirements, context)
+
+        logger.info("PHASE 4: GENERATE - Creating BRD sections")
+        sections = await self._generate_sections(requirements, conflicts, sentiment, context)
+
+        # Assemble final BRD
+        brd_id = generate_brd_id()
+        brd = BRD(
+            brd_id=brd_id,
+            project_id=project_id,
+            generated_at=datetime.utcnow(),
+            document_count=len(context["relevant_documents"]),
+            total_citations=sum(len(s.citations) for s in sections.values()),
+            executive_summary=sections["executive_summary"],
+            business_objectives=sections["business_objectives"],
+            stakeholders=sections["stakeholders"],
+            functional_requirements=sections["functional_requirements"],
+            non_functional_requirements=sections["non_functional_requirements"],
+            assumptions=sections["assumptions"],
+            success_metrics=sections["success_metrics"],
+            timeline=sections["timeline"],
+            conflicts=conflicts,
+            sentiment=sentiment,
+            generation_metadata={
+                "relevant_docs": len(context["relevant_documents"]),
+                "total_requirements": len(requirements),
+                "conflicts_detected": len(conflicts),
+                "phases_completed": ["REASON", "ACT", "OBSERVE", "GENERATE"]
+            }
+        )
+
+        logger.info(f"BRD generation complete: {brd_id}")
+        return brd
+
+    async def _reason_phase(self, project_id: str) -> Dict[str, Any]:
+        """
+        PHASE 1: REASON - Determine which documents are relevant.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            Context dict with relevant_documents list
+        """
+        # List all documents with metadata
+        all_docs = await self.tools.list_project_documents(project_id)
+
+        # Filter for relevant documents
+        # Documents are relevant if:
+        # 1. They have requirements (functional or non-functional)
+        # 2. They have decisions
+        # 3. They have stakeholder feedback
+        # 4. They have timeline information
+        relevant_docs = [
+            doc for doc in all_docs
+            if (
+                doc.get("contains", {}).get("functional_requirements", False) or
+                doc.get("contains", {}).get("non_functional_requirements", False) or
+                doc.get("contains", {}).get("decisions", False) or
+                doc.get("contains", {}).get("stakeholder_feedback", False) or
+                doc.get("contains", {}).get("timeline", False)
+            )
+        ]
+
+        logger.info(f"Found {len(relevant_docs)} relevant documents out of {len(all_docs)} total")
+
+        return {
+            "project_id": project_id,
+            "all_documents": all_docs,
+            "relevant_documents": relevant_docs
+        }
+
+    async def _act_phase(self, context: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        PHASE 2: ACT - Extract requirements from relevant documents.
+
+        Args:
+            context: Context from REASON phase
+
+        Returns:
+            List of all requirements extracted
+        """
+        relevant_docs = context["relevant_documents"]
+
+        # Extract requirements from each document in parallel
+        extraction_tasks = []
+
+        for doc in relevant_docs:
+            task = self._extract_requirements_from_doc(doc)
+            extraction_tasks.append(task)
+
+        # Run all extractions in parallel
+        all_requirements = await asyncio.gather(*extraction_tasks)
+
+        # Flatten results and add doc_id to each requirement
+        flattened_requirements = []
+        for doc_reqs, doc in zip(all_requirements, relevant_docs):
+            for req in doc_reqs:
+                req["source_doc_id"] = doc["doc_id"]
+                req["source_filename"] = doc["filename"]
+                flattened_requirements.append(req)
+
+        logger.info(f"Extracted {len(flattened_requirements)} total requirements")
+
+        return flattened_requirements
+
+    async def _extract_requirements_from_doc(self, doc: Dict) -> List[Dict[str, Any]]:
+        """
+        Extract requirements from a single document.
+
+        Args:
+            doc: Document metadata dict
+
+        Returns:
+            List of requirements from this document
+        """
+        try:
+            # Get full document text
+            full_text = await self.tools.get_full_document_text(doc["doc_id"])
+
+            # Extract requirements using Gemini
+            requirements = await self.gemini.extract_requirements(full_text)
+
+            return requirements
+
+        except Exception as e:
+            logger.error(f"Failed to extract requirements from {doc['filename']}: {e}")
+            return []
+
+    async def _observe_phase(
+        self,
+        requirements: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> tuple[List[Conflict], Sentiment]:
+        """
+        PHASE 3: OBSERVE - Detect conflicts and analyze sentiment.
+
+        Args:
+            requirements: All extracted requirements
+            context: Context from REASON phase
+
+        Returns:
+            Tuple of (conflicts, sentiment)
+        """
+        # Convert requirements to JSON for analysis
+        requirements_json = json.dumps(requirements, indent=2)
+
+        # Get all stakeholders from documents
+        all_stakeholders = set()
+        for doc in context["relevant_documents"]:
+            all_stakeholders.update(doc.get("key_stakeholders", []))
+
+        stakeholders_json = json.dumps(list(all_stakeholders))
+
+        # Combine all document texts for sentiment analysis
+        doc_texts = []
+        for doc in context["relevant_documents"]:
+            try:
+                text = await self.tools.get_full_document_text(doc["doc_id"])
+                doc_texts.append(text)
+            except Exception as e:
+                logger.warning(f"Could not fetch text for {doc['filename']}: {e}")
+
+        combined_text = "\n\n---\n\n".join(doc_texts)
+
+        # Run conflict detection and sentiment analysis in parallel
+        conflicts_task = self.gemini.detect_conflicts(requirements_json)
+        sentiment_task = self.gemini.analyze_sentiment(combined_text, stakeholders_json)
+
+        conflicts_data, sentiment_data = await asyncio.gather(
+            conflicts_task,
+            sentiment_task
+        )
+
+        # Convert to Pydantic models
+        conflicts = [
+            Conflict(**conflict) for conflict in conflicts_data
+        ]
+
+        sentiment = Sentiment(**sentiment_data)
+
+        logger.info(f"Detected {len(conflicts)} conflicts")
+        logger.info(f"Overall sentiment: {sentiment.overall_sentiment}")
+
+        return conflicts, sentiment
+
+    async def _generate_sections(
+        self,
+        requirements: List[Dict[str, Any]],
+        conflicts: List[Conflict],
+        sentiment: Sentiment,
+        context: Dict[str, Any]
+    ) -> Dict[str, BRDSection]:
+        """
+        PHASE 4: GENERATE - Create all 8 BRD sections in parallel.
+
+        Args:
+            requirements: All extracted requirements
+            conflicts: Detected conflicts
+            sentiment: Sentiment analysis
+            context: Context from REASON phase
+
+        Returns:
+            Dict of section_name -> BRDSection
+        """
+        # Prepare context for section generation
+        generation_context = {
+            "requirements": requirements,
+            "conflicts": [c.model_dump() for c in conflicts],
+            "sentiment": sentiment.model_dump(),
+            "documents": context["relevant_documents"]
+        }
+
+        # Generate all 8 sections in parallel
+        section_names = [
+            "executive_summary",
+            "business_objectives",
+            "stakeholders",
+            "functional_requirements",
+            "non_functional_requirements",
+            "assumptions",
+            "success_metrics",
+            "timeline"
+        ]
+
+        generation_tasks = [
+            self._generate_single_section(name, generation_context)
+            for name in section_names
+        ]
+
+        section_results = await asyncio.gather(*generation_tasks)
+
+        # Convert to dict
+        sections = {
+            name: section
+            for name, section in zip(section_names, section_results)
+        }
+
+        return sections
+
+    async def _generate_single_section(
+        self,
+        section_name: str,
+        context: Dict[str, Any]
+    ) -> BRDSection:
+        """
+        Generate a single BRD section.
+
+        Args:
+            section_name: Name of section to generate
+            context: Generation context
+
+        Returns:
+            BRDSection with content and citations
+        """
+        try:
+            # Generate section using Gemini
+            section_data = await self.gemini.generate_brd_section(
+                section_name,
+                context
+            )
+
+            # Convert citations to Citation models
+            citations = [
+                Citation(**citation)
+                for citation in section_data.get("citations", [])
+            ]
+
+            # Create BRDSection
+            section = BRDSection(
+                title=section_name.replace("_", " ").title(),
+                content=section_data.get("content", ""),
+                citations=citations,
+                subsections=section_data.get("subsections")
+            )
+
+            return section
+
+        except Exception as e:
+            logger.error(f"Failed to generate section {section_name}: {e}")
+
+            # Return error section
+            return BRDSection(
+                title=section_name.replace("_", " ").title(),
+                content=f"Error generating section: {str(e)}",
+                citations=[],
+                subsections=None
+            )
+
+
+# Global service instance
+agent_service = BRDAgentService()
