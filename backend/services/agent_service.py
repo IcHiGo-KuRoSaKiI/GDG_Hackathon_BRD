@@ -244,7 +244,16 @@ class BRDAgentService:
             Conflict(**conflict) for conflict in conflicts_data
         ]
 
-        sentiment = Sentiment(**sentiment_data)
+        # Transform sentiment data to match Sentiment model
+        sentiment = Sentiment(
+            overall_sentiment=sentiment_data.get("overall", "neutral"),
+            confidence=0.8,  # Default confidence for sentiment analysis
+            stakeholder_breakdown={
+                name: data.get("sentiment", "neutral")
+                for name, data in sentiment_data.get("stakeholder_sentiment", {}).items()
+            },
+            key_concerns=[]  # Extract from stakeholder concerns if needed
+        )
 
         logger.info(f"Detected {len(conflicts)} conflicts")
         logger.info(f"Overall sentiment: {sentiment.overall_sentiment}")
