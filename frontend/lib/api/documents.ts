@@ -84,3 +84,13 @@ export async function previewDocumentDeletion(
   )
   return response.data
 }
+
+export async function getDocumentText(
+  projectId: string,
+  documentId: string
+): Promise<string> {
+  const response = await apiClient.get(
+    `/projects/${projectId}/documents/${documentId}/text`
+  )
+  return response.data
+}

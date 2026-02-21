@@ -1,17 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
+import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
 import { getProjects } from '@/lib/api/projects'
 import { Project } from '@/lib/api/projects'
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
 
   const loadProjects = async () => {
     try {
@@ -34,6 +39,15 @@ export default function DashboardPage() {
   useEffect(() => {
     loadProjects()
   }, [])
+
+  const handleDeleteProject = (project: Project) => {
+    setProjectToDelete(project)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleProjectDeleted = () => {
+    loadProjects()
+  }
 
   return (
     <div className="p-8">
@@ -74,7 +88,7 @@ export default function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <ProjectCard project={project} />
+              <ProjectCard project={project} onDelete={handleDeleteProject} />
             </motion.div>
           ))}
           <CreateProjectModal onSuccess={loadProjects} />
@@ -87,6 +101,13 @@ export default function DashboardPage() {
           <CreateProjectModal onSuccess={loadProjects} />
         </div>
       )}
+
+      <DeleteProjectDialog
+        project={projectToDelete}
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onDeleted={handleProjectDeleted}
+      />
     </div>
   )
 }

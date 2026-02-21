@@ -13,21 +13,11 @@ export interface BRDSection {
 
 export interface Conflict {
   id: string
-  requirement_1: {
-    id: string
-    text: string
-    source: string
-    stakeholder?: string
-  }
-  requirement_2: {
-    id: string
-    text: string
-    source: string
-    stakeholder?: string
-  }
   conflict_type: string
   severity: 'low' | 'medium' | 'high'
-  resolution?: string
+  description: string
+  affected_requirements: string[]
+  sources: string[]
 }
 
 export interface SentimentAnalysis {
@@ -44,16 +34,16 @@ export interface BRD {
     executive_summary?: BRDSection
     business_objectives?: BRDSection
     stakeholders?: BRDSection
-    scope?: BRDSection
+    project_scope?: BRDSection
     functional_requirements?: BRDSection
     non_functional_requirements?: BRDSection
-    user_stories?: BRDSection
-    data_requirements?: BRDSection
-    integration_requirements?: BRDSection
-    security_requirements?: BRDSection
     assumptions?: BRDSection
-    constraints?: BRDSection
+    success_metrics?: BRDSection
+    timeline?: BRDSection
+    project_background?: BRDSection
+    dependencies?: BRDSection
     risks?: BRDSection
+    cost_benefit?: BRDSection
   }
   conflicts?: Conflict[]
   sentiment?: SentimentAnalysis
@@ -64,26 +54,132 @@ export interface BRD {
 }
 
 export interface GenerateBRDRequest {
+  project_id?: string
   include_conflicts?: boolean
   include_sentiment?: boolean
 }
+
+// ---------------------------------------------------------------------------
+// Backend → Frontend transform
+// ---------------------------------------------------------------------------
+// Backend BRD model uses different field names and a flat section structure.
+// This function maps the backend response into the frontend BRD interface.
+
+const SECTION_KEYS = [
+  'executive_summary',
+  'business_objectives',
+  'stakeholders',
+  'project_scope',
+  'functional_requirements',
+  'non_functional_requirements',
+  'assumptions',
+  'success_metrics',
+  'timeline',
+  'project_background',
+  'dependencies',
+  'risks',
+  'cost_benefit',
+] as const
+
+function transformCitations(
+  citations?: Array<Record<string, any>>
+): BRDSection['citations'] {
+  if (!citations || citations.length === 0) return undefined
+  return citations.map((c, i) => ({
+    id: String(i + 1),
+    text: c.quote ?? c.text ?? '',
+    source: c.filename ?? c.source ?? '',
+    document_id: c.doc_id ?? c.document_id ?? '',
+  }))
+}
+
+function transformSection(raw: any): BRDSection | undefined {
+  if (!raw || !raw.content) return undefined
+  return {
+    title: raw.title ?? '',
+    content: raw.content,
+    citations: transformCitations(raw.citations),
+  }
+}
+
+function transformConflicts(raw?: any[]): Conflict[] | undefined {
+  if (!raw || raw.length === 0) return undefined
+  return raw.map((c, i) => ({
+    id: c.id ?? String(i + 1),
+    conflict_type: c.conflict_type ?? 'unknown',
+    severity: c.severity ?? 'medium',
+    description: c.description ?? '',
+    affected_requirements: c.affected_requirements ?? [],
+    sources: c.sources ?? [],
+  }))
+}
+
+function transformSentiment(raw?: any): SentimentAnalysis | undefined {
+  if (!raw) return undefined
+  return {
+    overall: raw.overall_sentiment ?? raw.overall ?? '',
+    by_stakeholder: raw.stakeholder_breakdown ?? raw.by_stakeholder,
+    by_topic: raw.by_topic,
+  }
+}
+
+function transformBRD(raw: any): BRD {
+  const sections: BRD['sections'] = {}
+  for (const key of SECTION_KEYS) {
+    const section = transformSection(raw[key])
+    if (section) {
+      ;(sections as any)[key] = section
+    }
+  }
+
+  // Also handle pre-transformed data that already has a sections object
+  if (raw.sections && typeof raw.sections === 'object') {
+    for (const key of SECTION_KEYS) {
+      const section = transformSection(raw.sections[key])
+      if (section) {
+        ;(sections as any)[key] = section
+      }
+    }
+  }
+
+  const generatedAt = raw.generated_at ?? raw.created_at ?? ''
+
+  return {
+    id: raw.brd_id ?? raw.id ?? '',
+    project_id: raw.project_id ?? '',
+    status: 'complete', // BRDs only exist in Firestore once generation finishes
+    sections,
+    conflicts: transformConflicts(raw.conflicts),
+    sentiment: transformSentiment(raw.sentiment),
+    created_at: generatedAt,
+    updated_at: raw.updated_at ?? generatedAt,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// API functions
+// ---------------------------------------------------------------------------
 
 export async function generateBRD(
   projectId: string,
   request: GenerateBRDRequest = {}
 ): Promise<{ brd_id: string }> {
-  const response = await apiClient.post(`/projects/${projectId}/brds/generate`, request)
+  const response = await apiClient.post(`/projects/${projectId}/brds/generate`, {
+    project_id: projectId,
+    ...request
+  })
   return response.data
 }
 
 export async function getBRDs(projectId: string): Promise<BRD[]> {
   const response = await apiClient.get(`/projects/${projectId}/brds`)
-  return response.data
+  const data = Array.isArray(response.data) ? response.data : []
+  return data.map(transformBRD)
 }
 
 export async function getBRD(projectId: string, brdId: string): Promise<BRD> {
   const response = await apiClient.get(`/projects/${projectId}/brds/${brdId}`)
-  return response.data
+  return transformBRD(response.data)
 }
 
 export interface RefineTextRequest {
@@ -113,4 +209,8 @@ export async function refineText(
     request
   )
   return response.data
+}
+
+export async function deleteBRD(projectId: string, brdId: string): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}/brds/${brdId}`)
 }
