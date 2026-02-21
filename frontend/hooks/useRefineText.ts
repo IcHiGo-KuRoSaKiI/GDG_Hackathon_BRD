@@ -91,10 +91,18 @@ export function useRefineText({
         // as the selected_text for iterative refinement
         const selectedText = latestRefinedText ?? originalTextRef.current
 
+        // Build conversation history from previous messages (skip system hints)
+        // Use a snapshot of messages before adding the current user message
+        const history = messages
+          .filter((m) => m.role === 'user' || m.role === 'assistant')
+          .map((m) => ({ role: m.role, content: m.content }))
+          .slice(-20)
+
         const result = await chatMessage(projectId, brdId, {
           message,
           section_context: sectionKey || sectionKeyRef.current,
           selected_text: selectedText || undefined,
+          conversation_history: history.length > 0 ? history : undefined,
         })
 
         // Update state based on response type

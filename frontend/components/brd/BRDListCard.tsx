@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, AlertTriangle, CheckCircle, Clock, Loader2, Trash2 } from 'lucide-react'
+import { FileText, AlertTriangle, CheckCircle, CheckCircle2, Clock, Loader2, Trash2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -100,12 +100,30 @@ export function BRDListCard({ brd, projectId, onDelete }: BRDListCardProps) {
         {brd.status === 'complete' && (
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span>{sectionCount} sections</span>
-            {brd.conflicts && brd.conflicts.length > 0 && (
-              <span className="flex items-center gap-1 text-amber-500">
-                <AlertTriangle className="h-3 w-3" />
-                {brd.conflicts.length} conflict{brd.conflicts.length > 1 ? 's' : ''}
-              </span>
-            )}
+            {brd.conflicts && brd.conflicts.length > 0 && (() => {
+              const total = brd.conflicts.length
+              const resolvedCount = brd.conflicts.filter(
+                (c) => c.status && c.status !== 'open'
+              ).length
+              const allResolved = resolvedCount === total
+
+              return (
+                <span className={`flex items-center gap-1 ${
+                  allResolved ? 'text-emerald-500' : 'text-amber-500'
+                }`}>
+                  {allResolved
+                    ? <CheckCircle2 className="h-3 w-3" />
+                    : <AlertTriangle className="h-3 w-3" />
+                  }
+                  {total} conflict{total > 1 ? 's' : ''}
+                  {resolvedCount > 0 && (
+                    <span className="text-muted-foreground font-normal">
+                      ({resolvedCount} resolved)
+                    </span>
+                  )}
+                </span>
+              )
+            })()}
           </div>
         )}
 

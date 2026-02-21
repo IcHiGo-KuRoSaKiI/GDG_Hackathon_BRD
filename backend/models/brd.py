@@ -271,6 +271,12 @@ class ResponseType(str, Enum):
     GENERATION = "generation"   # New content generated → show Accept bar
 
 
+class ConversationTurn(BaseModel):
+    """A single turn in the conversation history."""
+    role: str = Field(..., description="'user' or 'assistant'")
+    content: str = Field(..., max_length=10000)
+
+
 class ChatRequest(BaseModel):
     """
     Request for unified agentic chat.
@@ -293,6 +299,10 @@ class ChatRequest(BaseModel):
         "",
         max_length=5000,
         description="Text selected for refinement (empty for general chat)"
+    )
+    conversation_history: List[ConversationTurn] = Field(
+        default_factory=list,
+        description="Previous conversation turns for multi-turn context (max 20)"
     )
 
     @validator("message")

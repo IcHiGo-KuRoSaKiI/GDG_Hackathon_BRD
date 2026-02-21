@@ -446,8 +446,11 @@ class TextRefinementService:
             selected_text=escaped_text,
         )
 
+        # Cap conversation history at 20 turns to limit token usage
+        history = request.conversation_history[:20] if request.conversation_history else []
+
         try:
-            result = await self._execute_unified_workflow(prompt, project_id)
+            result = await self._execute_unified_workflow(prompt, project_id, history)
 
             logger.info(
                 f"Unified chat successful - Type: {result['response_type']}, "
@@ -469,7 +472,8 @@ class TextRefinementService:
     async def _execute_unified_workflow(
         self,
         initial_prompt: str,
-        project_id: str
+        project_id: str,
+        conversation_history: list = None
     ) -> Dict[str, Any]:
         """
         Execute unified agentic workflow with submit_response interception.
@@ -482,11 +486,22 @@ class TextRefinementService:
         Args:
             initial_prompt: Formatted prompt with escaped user inputs
             project_id: Project ID for tool execution
+            conversation_history: Previous conversation turns for multi-turn context
 
         Returns:
             Dict with content, response_type, sources_used, tool_calls
         """
-        messages = [types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)])]
+        # Build message array: previous turns + current prompt
+        messages = []
+        if conversation_history:
+            for turn in conversation_history:
+                role = "user" if turn.role == "user" else "model"
+                messages.append(types.Content(
+                    role=role,
+                    parts=[types.Part.from_text(text=turn.content)]
+                ))
+            logger.info(f"Prepended {len(conversation_history)} history turns")
+        messages.append(types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)]))
         sources_used = set()
         tool_calls = []
         max_iterations = 8

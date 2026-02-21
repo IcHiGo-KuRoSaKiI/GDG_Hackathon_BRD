@@ -76,12 +76,25 @@ export function ConflictPanel({
     .filter((s) => statusCounts[s])
     .map((s) => `${statusCounts[s]} ${STATUS_CONFIG[s].label}`)
 
+  const openCount = statusCounts['open'] || 0
+  const allResolved = openCount === 0
+
   return (
-    <Card className="border-amber-500/20 bg-amber-500/5">
+    <Card className={allResolved
+      ? 'border-emerald-500/20 bg-emerald-500/5'
+      : 'border-amber-500/20 bg-amber-500/5'
+    }>
       <CardHeader>
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
-            <AlertTriangle className="h-5 w-5" />
+          <CardTitle className={`flex items-center gap-2 ${
+            allResolved
+              ? 'text-emerald-600 dark:text-emerald-500'
+              : 'text-amber-600 dark:text-amber-500'
+          }`}>
+            {allResolved
+              ? <CheckCircle2 className="h-5 w-5" />
+              : <AlertTriangle className="h-5 w-5" />
+            }
             <span>
               {conflicts.length} Conflict{conflicts.length > 1 ? 's' : ''}
               {summaryParts.length > 0 && (

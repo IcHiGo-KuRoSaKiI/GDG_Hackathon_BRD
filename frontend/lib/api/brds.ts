@@ -255,6 +255,7 @@ export interface ChatMessageRequest {
   message: string
   section_context: string
   selected_text?: string
+  conversation_history?: Array<{ role: string; content: string }>
 }
 
 export interface ChatMessageResponse {
