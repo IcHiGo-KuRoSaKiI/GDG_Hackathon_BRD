@@ -33,8 +33,8 @@ export default function RegisterPage() {
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -45,7 +45,13 @@ export default function RegisterPage() {
       authStore.login(response.token, response.user)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Registration failed. Please try again.')
+      const detail = err.response?.data?.detail
+      const message = Array.isArray(detail)
+        ? detail.map((d: any) => d.msg).join(', ')
+        : typeof detail === 'string'
+          ? detail
+          : 'Registration failed. Please try again.'
+      setError(message)
     } finally {
       setLoading(false)
     }
