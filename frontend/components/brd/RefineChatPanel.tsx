@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, Check, RotateCcw, Sparkles, PenLine, Loader2 } from 'lucide-react'
+import { X, Send, Check, RotateCcw, Sparkles, PenLine, Loader2, MessageSquare, Plus } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '@/components/ui/button'
@@ -16,8 +16,11 @@ interface RefineChatPanelProps {
   messages: ChatMessage[]
   isLoading: boolean
   latestRefinedText: string | null
+  hasActiveRefinement: boolean
   onSendPrompt: (instruction: string) => void
+  onSendChat: (message: string) => void
   onAccept: () => void
+  onNewChat: () => void
   onClose: () => void
 }
 
@@ -29,8 +32,11 @@ export function RefineChatPanel({
   messages,
   isLoading,
   latestRefinedText,
+  hasActiveRefinement,
   onSendPrompt,
+  onSendChat,
   onAccept,
+  onNewChat,
   onClose,
 }: RefineChatPanelProps) {
   const [input, setInput] = useState('')
@@ -52,7 +58,13 @@ export function RefineChatPanel({
   const handleSubmit = () => {
     const trimmed = input.trim()
     if (!trimmed || isLoading) return
-    onSendPrompt(trimmed)
+
+    // Route: refine mode → sendPrompt, general → sendChat
+    if (hasActiveRefinement) {
+      onSendPrompt(trimmed)
+    } else {
+      onSendChat(trimmed)
+    }
     setInput('')
   }
 
@@ -69,64 +81,86 @@ export function RefineChatPanel({
   if (!open) return null
 
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/20 z-40"
-        onClick={onClose}
-      />
-
-      {/* Panel */}
-      <div
-        className="fixed right-0 top-0 h-full w-[420px] max-w-full bg-background border-l shadow-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b shrink-0">
-          <div className="flex items-center gap-2">
-            {mode === 'refine' ? (
-              <Sparkles className="h-4 w-4 text-primary" />
+    <div className="w-[420px] shrink-0 border-l bg-background flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 border-b shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {hasActiveRefinement ? (
+            mode === 'refine' ? (
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
             ) : (
-              <PenLine className="h-4 w-4 text-primary" />
-            )}
-            <div>
-              <h3 className="text-sm font-semibold">
-                {mode === 'refine' ? 'Refine Text' : 'Generate Content'}
-              </h3>
-              <p className="text-xs text-muted-foreground">{sectionTitle}</p>
-            </div>
+              <PenLine className="h-4 w-4 text-primary shrink-0" />
+            )
+          ) : (
+            <MessageSquare className="h-4 w-4 text-primary shrink-0" />
+          )}
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold truncate">
+              {hasActiveRefinement
+                ? mode === 'refine' ? 'Refine Text' : 'Generate Content'
+                : 'BRD Chat'}
+            </h3>
+            <p className="text-xs text-muted-foreground truncate">{sectionTitle}</p>
           </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onNewChat}
+            className="h-8 w-8"
+            title="New Chat"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">
             <X className="h-4 w-4" />
           </Button>
         </div>
+      </div>
 
-        {/* Original text (refine mode only) */}
-        {mode === 'refine' && originalText && (
-          <div className="p-3 mx-4 mt-3 rounded-md bg-muted/50 border text-xs shrink-0">
-            <p className="text-muted-foreground font-medium mb-1">Selected text:</p>
-            <p className="line-clamp-4">{originalText}</p>
+      {/* Original text (refine mode only) */}
+      {hasActiveRefinement && mode === 'refine' && originalText && (
+        <div className="p-3 mx-4 mt-3 rounded-md bg-muted/50 border text-xs shrink-0">
+          <p className="text-muted-foreground font-medium mb-1">Selected text:</p>
+          <p className="line-clamp-4">{originalText}</p>
+        </div>
+      )}
+
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && !isLoading && (
+          <div className="text-center text-muted-foreground text-sm py-8">
+            <p className="mb-2">
+              {hasActiveRefinement
+                ? mode === 'refine'
+                  ? 'Describe how you want to refine the selected text.'
+                  : 'Describe what content you want to generate.'
+                : 'Ask anything about this BRD.'}
+            </p>
+            <p className="text-xs">
+              {hasActiveRefinement
+                ? mode === 'generate'
+                  ? 'AI will search your project documents for context.'
+                  : 'You can iterate with multiple prompts until satisfied.'
+                : 'AI will search your project documents to answer questions.'}
+            </p>
           </div>
         )}
 
-        {/* Messages area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {messages.length === 0 && !isLoading && (
-            <div className="text-center text-muted-foreground text-sm py-8">
-              <p className="mb-2">
-                {mode === 'refine'
-                  ? 'Describe how you want to refine the selected text.'
-                  : 'Describe what content you want to generate.'}
-              </p>
-              <p className="text-xs">
-                {mode === 'generate'
-                  ? 'AI will search your project documents for context.'
-                  : 'You can iterate with multiple prompts until satisfied.'}
-              </p>
-            </div>
-          )}
+        {messages.map((msg, i) => {
+          // System messages → centered muted separator
+          if (msg.role === 'system') {
+            return (
+              <div key={i} className="flex justify-center">
+                <span className="text-[11px] text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
+                  {msg.content}
+                </span>
+              </div>
+            )
+          }
 
-          {messages.map((msg, i) => (
+          return (
             <div
               key={i}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -158,71 +192,75 @@ export function RefineChatPanel({
                 )}
               </div>
             </div>
-          ))}
+          )
+        })}
 
-          {/* Loading indicator */}
-          {isLoading && (
-            <div className="flex justify-start">
-              <div className="bg-muted border rounded-lg p-3 flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                {mode === 'generate' ? 'Searching documents & generating...' : 'Refining...'}
-              </div>
+        {/* Loading indicator */}
+        {isLoading && (
+          <div className="flex justify-start">
+            <div className="bg-muted border rounded-lg p-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {hasActiveRefinement
+                ? mode === 'generate' ? 'Searching documents & generating...' : 'Refining...'
+                : 'Searching documents...'}
             </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Accept bar (when refined text available) */}
-        {latestRefinedText && !isLoading && (
-          <div className="p-3 border-t bg-muted/30 shrink-0 flex items-center gap-2">
-            <Button size="sm" className="gap-1.5 flex-1" onClick={onAccept}>
-              <Check className="h-3.5 w-3.5" />
-              Accept & Replace
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => inputRef.current?.focus()}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Iterate
-            </Button>
           </div>
         )}
 
-        {/* Input area */}
-        <div className="p-3 border-t shrink-0">
-          <div className="flex gap-2">
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                mode === 'refine'
-                  ? 'e.g. "Make this more concise and professional"'
-                  : 'e.g. "Add a security requirements section covering OAuth and RBAC"'
-              }
-              rows={2}
-              className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              disabled={isLoading}
-            />
-            <Button
-              size="icon"
-              onClick={handleSubmit}
-              disabled={!input.trim() || isLoading}
-              className="shrink-0 self-end"
-            >
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5">
-            Enter to send, Shift+Enter for new line, Esc to close
-          </p>
-        </div>
+        <div ref={messagesEndRef} />
       </div>
-    </>
+
+      {/* Accept bar (only during active refinement with results) */}
+      {hasActiveRefinement && latestRefinedText && !isLoading && (
+        <div className="p-3 border-t bg-muted/30 shrink-0 flex items-center gap-2">
+          <Button size="sm" className="gap-1.5 flex-1" onClick={onAccept}>
+            <Check className="h-3.5 w-3.5" />
+            Accept & Replace
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => inputRef.current?.focus()}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Iterate
+          </Button>
+        </div>
+      )}
+
+      {/* Input area */}
+      <div className="p-3 border-t shrink-0">
+        <div className="flex gap-2">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              hasActiveRefinement
+                ? mode === 'refine'
+                  ? 'e.g. "Make this more concise and professional"'
+                  : 'e.g. "Add security requirements covering OAuth and RBAC"'
+                : 'Ask about this BRD...'
+            }
+            rows={2}
+            className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            disabled={isLoading}
+          />
+          <Button
+            size="icon"
+            onClick={handleSubmit}
+            disabled={!input.trim() || isLoading}
+            className="shrink-0 self-end"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1.5">
+          Enter to send, Shift+Enter for new line, Esc to close
+        </p>
+      </div>
+    </div>
   )
 }

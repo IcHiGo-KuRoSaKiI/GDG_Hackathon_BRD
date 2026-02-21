@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Download, Loader2, MessageSquare } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { getBRD, updateBRDSection, BRD } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
@@ -89,7 +89,7 @@ export default function BRDViewerPage() {
     selection.clearSelection()
   }, [selection, refine, activeSection])
 
-  // Accept refined text → persist to backend and update local state
+  // Accept refined text → persist to backend, keep sidebar open
   const handleAccept = useCallback(async () => {
     if (!refine.latestRefinedText || !brd) return
 
@@ -129,8 +129,10 @@ export default function BRDViewerPage() {
         }
       })
 
-      setChatOpen(false)
-      refine.reset()
+      // Keep sidebar open — clear refinement state, add confirmation
+      refineSelectedTextRef.current = ''
+      refine.clearRefinement()
+      refine.addSystemMessage('Changes saved')
     } catch (err: any) {
       console.error('Failed to save section:', err)
     } finally {
@@ -138,10 +140,31 @@ export default function BRDViewerPage() {
     }
   }, [refine, brd, projectId, brdId])
 
+  // Close sidebar — keep messages for when it reopens
   const handleCloseChat = useCallback(() => {
     setChatOpen(false)
+  }, [])
+
+  // Explicit New Chat — clear everything
+  const handleNewChat = useCallback(() => {
+    refineSelectedTextRef.current = ''
+    refineSectionKeyRef.current = activeSection
+    refineModeRef.current = 'refine'
     refine.reset()
-  }, [refine])
+  }, [refine, activeSection])
+
+  // General chat — send a question about the BRD (no text selection)
+  const handleSendChat = useCallback(
+    (message: string) => {
+      refine.sendChat(message, activeSection)
+    },
+    [refine, activeSection]
+  )
+
+  // Toggle sidebar open/closed
+  const handleToggleChat = useCallback(() => {
+    setChatOpen((prev) => !prev)
+  }, [])
 
   const handleExport = () => {
     if (!brd || !brd.sections) return
@@ -202,9 +225,9 @@ export default function BRDViewerPage() {
     : []
 
   return (
-    <div className="p-8">
+    <div className="h-screen flex flex-col">
       {/* Header */}
-      <div className="mb-8">
+      <div className="px-8 pt-8 pb-0 shrink-0">
         <Link href={`/projects/${projectId}`}>
           <Button variant="ghost" className="mb-4">
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -221,60 +244,72 @@ export default function BRDViewerPage() {
             </p>
           </div>
 
-          <Button onClick={handleExport} className="gap-2">
-            <Download className="h-4 w-4" />
-            Export as Markdown
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={handleToggleChat} className="gap-2">
+              <MessageSquare className="h-4 w-4" />
+              {chatOpen ? 'Hide Chat' : 'Chat'}
+            </Button>
+            <Button onClick={handleExport} className="gap-2">
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Conflicts Panel */}
-      {brd.conflicts && brd.conflicts.length > 0 && (
-        <div className="mb-8">
-          <ConflictPanel conflicts={brd.conflicts} />
-        </div>
-      )}
-
-      {/* Section Tabs */}
-      <div className="mb-6">
-        <BRDSectionTabs
-          activeSection={activeSection}
-          onSectionChange={setActiveSection}
-          availableSections={availableSections}
-        />
-      </div>
-
-      {/* Section Content — wrapped with ref for text selection detection */}
-      <div className="mb-8 relative" ref={setContentEl}>
-        <BRDSection
-          section={brd.sections?.[activeSection as keyof typeof brd.sections]}
-          title={SECTION_TITLES[activeSection] || activeSection}
-          sectionKey={activeSection}
-        />
-
-        {/* Floating Refine Toolbar */}
-        {selection.isActive && !chatOpen && (
-          <RefineToolbar
-            position={selection.toolbarPosition}
-            mode={selection.mode}
-            onRefine={handleOpenRefine}
-          />
+        {/* Conflicts Panel */}
+        {brd.conflicts && brd.conflicts.length > 0 && (
+          <div className="mt-6">
+            <ConflictPanel conflicts={brd.conflicts} />
+          </div>
         )}
+
+        {/* Section Tabs */}
+        <div className="mt-6 mb-0">
+          <BRDSectionTabs
+            activeSection={activeSection}
+            onSectionChange={setActiveSection}
+            availableSections={availableSections}
+          />
+        </div>
       </div>
 
-      {/* Refine Chat Panel */}
-      <RefineChatPanel
-        open={chatOpen}
-        mode={refineModeRef.current}
-        sectionTitle={SECTION_TITLES[refineSectionKeyRef.current] || refineSectionKeyRef.current}
-        originalText={refineSelectedTextRef.current}
-        messages={refine.messages}
-        isLoading={refine.isLoading || saving}
-        latestRefinedText={refine.latestRefinedText}
-        onSendPrompt={refine.sendPrompt}
-        onAccept={handleAccept}
-        onClose={handleCloseChat}
-      />
+      {/* Main content area — flex row */}
+      <div className="flex flex-1 min-h-0">
+        {/* BRD content — scrollable */}
+        <div className="flex-1 min-w-0 overflow-y-auto px-8 py-6 relative" ref={setContentEl}>
+          <BRDSection
+            section={brd.sections?.[activeSection as keyof typeof brd.sections]}
+            title={SECTION_TITLES[activeSection] || activeSection}
+            sectionKey={activeSection}
+          />
+
+          {/* Floating Refine Toolbar */}
+          {selection.isActive && !chatOpen && (
+            <RefineToolbar
+              position={selection.toolbarPosition}
+              mode={selection.mode}
+              onRefine={handleOpenRefine}
+            />
+          )}
+        </div>
+
+        {/* Chat Sidebar */}
+        <RefineChatPanel
+          open={chatOpen}
+          mode={refineModeRef.current}
+          sectionTitle={SECTION_TITLES[refineSectionKeyRef.current] || refineSectionKeyRef.current || SECTION_TITLES[activeSection] || activeSection}
+          originalText={refineSelectedTextRef.current}
+          messages={refine.messages}
+          isLoading={refine.isLoading || saving}
+          latestRefinedText={refine.latestRefinedText}
+          hasActiveRefinement={refine.hasActiveRefinement}
+          onSendPrompt={refine.sendPrompt}
+          onSendChat={handleSendChat}
+          onAccept={handleAccept}
+          onNewChat={handleNewChat}
+          onClose={handleCloseChat}
+        />
+      </div>
     </div>
   )
 }
