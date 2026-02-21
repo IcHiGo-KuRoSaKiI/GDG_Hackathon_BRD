@@ -36,7 +36,6 @@ from .ai_responses import (
     MetadataGenerationResponse,
     RequirementResponse,
     RequirementsExtractionResponse,
-    ConflictResponse,
     ConflictDetectionResponse,
     BRDSectionResponse,
     AgentReasoningResponse
@@ -77,7 +76,6 @@ __all__ = [
     "MetadataGenerationResponse",
     "RequirementResponse",
     "RequirementsExtractionResponse",
-    "ConflictResponse",
     "ConflictDetectionResponse",
     "BRDSectionResponse",
     "AgentReasoningResponse"
