@@ -88,7 +88,8 @@ class DocumentService:
             logger.info(f"📄 [2/5] Parsing {filename} with Chomper...")
             full_text, chunks, chomper_meta = await self._parse_with_chomper(
                 file_data,
-                filename
+                filename,
+                doc_id
             )
             logger.info(f"✅ Parsed {len(full_text)} chars into {len(chunks)} chunks")
 
@@ -165,41 +166,91 @@ class DocumentService:
     async def _parse_with_chomper(
         self,
         file_data: bytes,
-        filename: str
+        filename: str,
+        doc_id: str
     ) -> Tuple[str, List[Chunk], ChomperMetadata]:
         """
-        Parse document using Chomper MCP or document-parser.
+        Parse document using Chomper library.
+
+        Supports 36+ formats: PDF, DOCX, PPTX, XLSX, HTML, TXT, CSV, etc.
+        Falls back to raw text decode for unsupported formats.
 
         Args:
             file_data: File bytes
             filename: Original filename
+            doc_id: Document ID for chunk association
 
         Returns:
             Tuple of (full_text, chunks, chomper_metadata)
         """
-        # Write file to temp location for MCP tool
-        with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as tmp_file:
-            tmp_file.write(file_data)
-            tmp_path = tmp_file.name
+        from ..config import settings
+        import chomper
+        from chomper import ChomperError
 
         try:
-            # Use document-parser MCP tool
-            # This is a placeholder - actual implementation depends on MCP availability
-            # For now, we'll use a simple text extraction fallback
+            # Parse document bytes (sync call → offload to thread pool)
+            result = await asyncio.to_thread(
+                chomper.parse_bytes, file_data, filename
+            )
+            full_text = result.text
 
-            logger.warning("Using fallback text extraction (Chomper MCP not integrated yet)")
+            # Chunk document (needs file path, so write temp file)
+            with tempfile.NamedTemporaryFile(
+                delete=False, suffix=Path(filename).suffix
+            ) as tmp:
+                tmp.write(file_data)
+                tmp_path = tmp.name
 
-            # Simple text extraction (fallback)
+            try:
+                chunk_results = await asyncio.to_thread(
+                    chomper.chunk,
+                    tmp_path,
+                    strategy="auto",
+                    chunk_size=settings.chunk_size,
+                    overlap=settings.chunk_overlap,
+                )
+            finally:
+                Path(tmp_path).unlink(missing_ok=True)
+
+            # Convert Chomper ChunkResult → our Chunk model
+            chunks = []
+            for cr in chunk_results:
+                chunks.append(Chunk(
+                    chunk_id=generate_chunk_id(doc_id, cr.chunk_id),
+                    doc_id=doc_id,
+                    chunk_index=cr.chunk_id,
+                    text=cr.text,
+                    word_count=cr.word_count,
+                    start_position=cr.start_char,
+                    end_position=cr.end_char,
+                    keywords=getattr(cr, 'keywords', []),
+                    section_name=getattr(cr, 'section_name', None),
+                ))
+
+            # Build metadata from parse result
+            chomper_meta = ChomperMetadata(
+                format=result.format,
+                page_count=result.metadata.get('page_count'),
+                word_count=result.word_count,
+                char_count=result.char_count,
+                has_images=len(result.images) > 0,
+                has_tables='table' in full_text.lower(),
+            )
+
+            logger.info(f"Chomper parsed {filename}: {result.format}, {result.word_count} words")
+            return full_text, chunks, chomper_meta
+
+        except (ChomperError, Exception) as e:
+            logger.warning(f"Chomper failed for {filename}: {e}, falling back to text decode")
+
+            # Fallback: raw text decode for unsupported formats
             try:
                 full_text = file_data.decode('utf-8')
             except UnicodeDecodeError:
-                # Try latin-1 as fallback
                 full_text = file_data.decode('latin-1', errors='ignore')
 
-            # Create chunks (simple word-based chunking)
-            chunks = self._create_chunks(full_text, filename)
+            chunks = self._create_chunks(full_text, filename, doc_id)
 
-            # Create basic metadata
             chomper_meta = ChomperMetadata(
                 format=Path(filename).suffix.lstrip('.'),
                 word_count=len(full_text.split()),
@@ -210,39 +261,30 @@ class DocumentService:
 
             return full_text, chunks, chomper_meta
 
-        finally:
-            # Clean up temp file
-            Path(tmp_path).unlink(missing_ok=True)
-
     def _create_chunks(
         self,
         full_text: str,
         filename: str,
-        chunk_size: int = 1000,
-        overlap: int = 100
+        doc_id: str
     ) -> List[Chunk]:
         """
-        Create text chunks for citation tracking.
+        Fallback text chunker (word-based) when Chomper is unavailable.
 
         Args:
             full_text: Full document text
             filename: Original filename
-            chunk_size: Words per chunk
-            overlap: Words overlap between chunks
+            doc_id: Document ID for chunk association
 
         Returns:
             List of Chunk models
         """
         from ..config import settings
 
-        # Use settings if available
         chunk_size = settings.chunk_size
         overlap = settings.chunk_overlap
 
         words = full_text.split()
         chunks = []
-
-        doc_id = generate_doc_id()
 
         i = 0
         chunk_index = 0

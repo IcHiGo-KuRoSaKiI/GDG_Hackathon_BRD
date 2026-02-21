@@ -120,6 +120,8 @@ class Chunk(BaseModel):
     word_count: int
     start_position: int  # Character position in full text
     end_position: int
+    keywords: List[str] = Field(default_factory=list)
+    section_name: Optional[str] = None
 
 
 class Document(BaseModel):

@@ -9,6 +9,7 @@ import logging
 from ..models import Document, User, DeletePreview, DeleteConfirmRequest, DeleteResponse, DeleteJob
 from ..services.document_service import document_service
 from ..services.firestore_service import firestore_service
+from ..services.storage_service import storage_service
 from ..services.deletion_service import deletion_service
 from ..utils import validate_project_id, validate_doc_id, validate_deletion_id
 from ..utils.auth_dependency import get_current_user
@@ -166,6 +167,54 @@ async def list_documents(
             status_code=500,
             detail=f"Failed to list documents: {str(e)}"
         )
+
+
+@router.get("/{doc_id}/text")
+async def get_document_text(
+    project_id: str,
+    doc_id: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Get parsed text content of a document from Cloud Storage.
+
+    Returns the full extracted text that was stored during document processing.
+    """
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_doc_id(doc_id):
+        raise HTTPException(status_code=400, detail="Invalid document ID format")
+
+    try:
+        # Verify project ownership
+        project = await firestore_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if project.user_id != user.user_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this project")
+
+        # Fetch document metadata to get text_path
+        document = await firestore_service.get_document(doc_id)
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+        if document.project_id != project_id:
+            raise HTTPException(status_code=404, detail="Document not found in this project")
+
+        if not document.text_path:
+            raise HTTPException(
+                status_code=404,
+                detail="Document text not available (still processing or failed)"
+            )
+
+        # Read text from Cloud Storage
+        text = await storage_service.download_text(document.text_path)
+        return text
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get document text {doc_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve document text: {str(e)}")
 
 
 @router.get("/{doc_id}", response_model=Document)

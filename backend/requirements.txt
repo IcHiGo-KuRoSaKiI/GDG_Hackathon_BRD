@@ -3,8 +3,8 @@
 # ============================================
 
 # Web Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.27.0
 python-multipart==0.0.6
 
 # Firebase / Firestore
@@ -19,8 +19,8 @@ google-genai>=0.2.0
 # AI/LLM - Unified interface for other models
 litellm==1.17.9
 
-# Document Parsing (Chomper - MCP)
-# Note: Install via MCP or pip install chomper
+# Document Parsing
+chomper @ git+https://github.com/IcHiGo-KuRoSaKiI/Chomper.git@main
 
 # Utilities
 python-dotenv==1.0.0
