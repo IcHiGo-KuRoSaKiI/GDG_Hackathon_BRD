@@ -18,8 +18,14 @@ export default function DashboardPage() {
       setLoading(true)
       const data = await getProjects()
       setProjects(data)
+      setError('')
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load projects')
+      const errorMsg = err.response?.data?.detail || 'Failed to load projects'
+      if (errorMsg.includes('token') || errorMsg.includes('authenticated')) {
+        setError('Your session has expired. Please logout and login again.')
+      } else {
+        setError(errorMsg)
+      }
     } finally {
       setLoading(false)
     }
@@ -43,8 +49,21 @@ export default function DashboardPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : error ? (
-        <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-          {error}
+        <div className="space-y-4">
+          <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+            {error}
+          </div>
+          <div className="flex justify-center">
+            <button
+              onClick={() => {
+                localStorage.clear()
+                window.location.href = '/login'
+              }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Go to Login
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
