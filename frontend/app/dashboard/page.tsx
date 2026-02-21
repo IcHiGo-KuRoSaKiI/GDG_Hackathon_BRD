@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { FolderOpen } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
@@ -51,11 +52,16 @@ export default function DashboardPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold mb-2">Your Projects</h1>
-        <p className="text-muted-foreground">
-          Manage your BRD generation projects
-        </p>
+      <div className="flex items-center justify-between mb-6 md:mb-8">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1">Your Projects</h1>
+          <p className="text-muted-foreground text-sm">
+            Manage your BRD generation projects
+          </p>
+        </div>
+        {!loading && !error && projects.length > 0 && (
+          <CreateProjectModal onSuccess={loadProjects} />
+        )}
       </div>
 
       {loading ? (
@@ -88,6 +94,17 @@ export default function DashboardPage() {
             </button>
           </div>
         </div>
+      ) : projects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="rounded-full bg-primary/10 p-4 mb-5">
+            <FolderOpen className="h-10 w-10 text-primary" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">No projects yet</h2>
+          <p className="text-muted-foreground text-sm mb-6 max-w-sm">
+            Create your first project to start uploading documents and generating BRDs.
+          </p>
+          <CreateProjectModal onSuccess={loadProjects} variant="empty-state" />
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {projects.map((project, index) => (
@@ -100,14 +117,6 @@ export default function DashboardPage() {
               <ProjectCard project={project} onDelete={handleDeleteProject} />
             </motion.div>
           ))}
-          <CreateProjectModal onSuccess={loadProjects} />
-        </div>
-      )}
-
-      {!loading && !error && projects.length === 0 && (
-        <div className="text-center py-20">
-          <p className="text-muted-foreground mb-4">No projects yet</p>
-          <CreateProjectModal onSuccess={loadProjects} />
         </div>
       )}
 

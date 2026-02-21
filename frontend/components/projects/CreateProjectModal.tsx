@@ -17,9 +17,10 @@ import { createProject } from '@/lib/api/projects'
 
 interface CreateProjectModalProps {
   onSuccess: () => void
+  variant?: 'header' | 'empty-state'
 }
 
-export function CreateProjectModal({ onSuccess }: CreateProjectModalProps) {
+export function CreateProjectModal({ onSuccess, variant = 'header' }: CreateProjectModalProps) {
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -47,10 +48,17 @@ export function CreateProjectModal({ onSuccess }: CreateProjectModalProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="h-full min-h-[200px] flex-col gap-2">
-          <Plus className="h-12 w-12" />
-          <span>New Project</span>
-        </Button>
+        {variant === 'empty-state' ? (
+          <Button size="lg" className="gap-2">
+            <Plus className="h-5 w-5" />
+            Create Your First Project
+          </Button>
+        ) : (
+          <Button size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
