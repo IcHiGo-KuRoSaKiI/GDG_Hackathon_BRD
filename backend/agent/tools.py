@@ -144,21 +144,20 @@ class AgentTools:
         doc_data = doc.to_dict()
 
         # Get the Cloud Storage path for parsed full text
-        parsed_full_path = doc_data.get("parsed_full_path")
+        text_path = doc_data.get("text_path")
 
-        if not parsed_full_path:
+        if not text_path:
             raise ValueError(f"Document {doc_id} has no parsed text")
 
         # Download full text from Cloud Storage
-        # Format: gs://bucket/parsed/project_id/doc_id_full.txt
-        bucket_name = parsed_full_path.replace("gs://", "").split("/")[0]
-        blob_path = "/".join(parsed_full_path.replace("gs://", "").split("/")[1:])
+        # Format: projects/{project_id}/documents/{doc_id}/text.txt
+        # The text_path is a relative path in the bucket
+        from ..config import settings
+        bucket = self.storage.bucket(settings.storage_bucket)
+        blob = bucket.blob(text_path)
 
-        bucket = self.storage.bucket(bucket_name)
-        blob = bucket.blob(blob_path)
-
-        # Download as string
-        full_text = blob.download_as_text()
+        # Download as string (run in thread pool since it's sync)
+        full_text = await asyncio.to_thread(blob.download_as_text)
 
         return full_text
 
