@@ -151,7 +151,7 @@ def validate_refinement_instruction(instruction: str) -> str:
     Comprehensive validation of text refinement instructions.
 
     Combines multiple security checks:
-    1. Length validation (1-500 chars)
+    1. Length validation (1-2000 chars)
     2. Prompt injection detection
     3. Content quality checks
 
@@ -180,8 +180,8 @@ def validate_refinement_instruction(instruction: str) -> str:
     # 2. Length check
     if len(instruction) < 1:
         raise ValueError("Instruction must be at least 1 character")
-    if len(instruction) > 500:
-        raise ValueError("Instruction too long (max 500 characters)")
+    if len(instruction) > 2000:
+        raise ValueError("Instruction too long (max 2000 characters)")
 
     # 3. Prompt injection detection
     if detect_prompt_injection(instruction):
