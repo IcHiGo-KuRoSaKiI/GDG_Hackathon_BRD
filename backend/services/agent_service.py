@@ -110,7 +110,9 @@ class BRDAgentService:
             Context dict with relevant_documents list
         """
         # List all documents with metadata
+        logger.info(f"🔧 TOOL CALL: list_project_documents(project_id={project_id})")
         all_docs = await self.tools.list_project_documents(project_id)
+        logger.info(f"📊 TOOL RESULT: Found {len(all_docs)} documents")
 
         # Filter for relevant documents
         # Documents are relevant if they have AI metadata with content indicators
@@ -190,7 +192,9 @@ class BRDAgentService:
         """
         try:
             # Get full document text
+            logger.info(f"🔧 TOOL CALL: get_full_document_text(doc_id={doc['doc_id']}, filename={doc['filename']})")
             full_text = await self.tools.get_full_document_text(doc["doc_id"])
+            logger.info(f"📄 TOOL RESULT: Retrieved {len(full_text)} characters from {doc['filename']}")
 
             # Extract requirements using Gemini
             requirements = await self.gemini.extract_requirements(full_text)
