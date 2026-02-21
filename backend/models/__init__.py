@@ -21,7 +21,14 @@ from .brd import (
     Citation,
     Conflict,
     Sentiment,
-    BRDGenerateRequest
+    BRDGenerateRequest,
+    # Text refinement models
+    RefineTextRequest,
+    RefineTextResponse,
+    TextRefinementMode,
+    BRDSectionEnum,
+    SimpleRefinementResult,
+    AgenticGenerationResult
 )
 from .user import (
     User,
@@ -73,6 +80,13 @@ __all__ = [
     "Conflict",
     "Sentiment",
     "BRDGenerateRequest",
+    # Text refinement
+    "RefineTextRequest",
+    "RefineTextResponse",
+    "TextRefinementMode",
+    "BRDSectionEnum",
+    "SimpleRefinementResult",
+    "AgenticGenerationResult",
     # User models
     "User",
     "UserCreate",

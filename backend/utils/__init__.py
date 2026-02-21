@@ -18,6 +18,12 @@ from .id_generator import (
     generate_deletion_id
 )
 from .auth_dependency import get_current_user, get_optional_user
+from .sanitization import (
+    escape_user_input,
+    detect_prompt_injection,
+    validate_refinement_instruction,
+    validate_selected_text
+)
 
 __all__ = [
     # Prompt management
@@ -37,5 +43,10 @@ __all__ = [
     "generate_deletion_id",
     # Auth dependencies
     "get_current_user",
-    "get_optional_user"
+    "get_optional_user",
+    # Security - Input sanitization
+    "escape_user_input",
+    "detect_prompt_injection",
+    "validate_refinement_instruction",
+    "validate_selected_text"
 ]

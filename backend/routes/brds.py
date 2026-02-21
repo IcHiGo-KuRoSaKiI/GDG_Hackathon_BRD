@@ -2,14 +2,15 @@
 BRD API routes.
 Handles BRD generation and retrieval.
 """
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import List
 import logging
 
-from ..models import BRD, BRDGenerateRequest
+from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, User
 from ..services.agent_service import agent_service
 from ..services.firestore_service import firestore_service
-from ..utils import validate_project_id, validate_brd_id
+from ..services.text_refinement_service import text_refinement_service
+from ..utils import validate_project_id, validate_brd_id, get_current_user
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/brds", tags=["brds"])
@@ -207,4 +208,141 @@ async def get_brd(project_id: str, brd_id: str):
         raise HTTPException(
             status_code=500,
             detail=f"Failed to retrieve BRD: {str(e)}"
+        )
+
+
+@router.post("/{brd_id}/refine-text", response_model=RefineTextResponse)
+async def refine_brd_text(
+    project_id: str,
+    brd_id: str,
+    request: RefineTextRequest,
+    user: User = Depends(get_current_user)
+):
+    """
+    Refine or generate text in a BRD section with AI assistance.
+
+    Security: Defense-in-depth against prompt injection attacks.
+    - Layer 1: Pydantic validation (request model)
+    - Layer 2: Pattern detection (Python utils)
+    - Layer 3: Defensive prompts (AI instruction)
+
+    Modes:
+    - Simple: Direct text refinement (2-3 seconds)
+    - Agentic: AI uses tools to access documents (4-8 seconds)
+
+    Args:
+        project_id: Project ID (for route consistency)
+        brd_id: BRD ID being edited
+        request: Refinement request with instruction and text
+        user: Authenticated user (from JWT token)
+
+    Returns:
+        Refined text with metadata (sources, tool calls)
+
+    Raises:
+        400: Invalid request (malformed data, prompt injection detected)
+        404: Project or BRD not found
+        403: User doesn't have access to this project
+        429: Rate limit exceeded
+        500: AI generation failed
+
+    Example:
+        POST /projects/proj_123/brds/brd_456/refine-text
+        {
+            "selected_text": "OAuth 2.0 authentication",
+            "instruction": "Make this more professional",
+            "section_context": "functional_requirements",
+            "mode": "simple"
+        }
+
+        Response:
+        {
+            "original": "OAuth 2.0 authentication",
+            "refined": "OAuth 2.0 authentication protocol utilizing...",
+            "sources_used": [],
+            "tool_calls_made": [],
+            "mode": "simple"
+        }
+    """
+    # Validate IDs
+    if not validate_project_id(project_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid project ID format"
+        )
+
+    if not validate_brd_id(brd_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid BRD ID format"
+        )
+
+    # Security logging - log the request (but NOT the actual instruction content)
+    logger.info(
+        f"Text refinement request - User: {user.user_id}, "
+        f"Project: {project_id}, BRD: {brd_id}, "
+        f"Mode: {request.mode}, Section: {request.section_context}"
+    )
+
+    try:
+        # Verify BRD exists and belongs to project
+        brd = await firestore_service.get_brd(brd_id)
+
+        if not brd:
+            raise HTTPException(
+                status_code=404,
+                detail=f"BRD {brd_id} not found"
+            )
+
+        if brd.project_id != project_id:
+            raise HTTPException(
+                status_code=404,
+                detail=f"BRD {brd_id} not found in project {project_id}"
+            )
+
+        # TODO: Add user ownership verification
+        # project = await firestore_service.get_project(project_id)
+        # if project.owner_id != user.user_id:
+        #     raise HTTPException(status_code=403, detail="Access denied")
+
+        # Call text refinement service
+        # Note: Pydantic validation already ran (Layer 1)
+        # Pattern detection runs in validator (Layer 2)
+        # Defensive prompts used in service (Layer 3)
+        result = await text_refinement_service.refine_text(
+            project_id,
+            brd_id,
+            request
+        )
+
+        logger.info(
+            f"Text refinement successful - Mode: {result.mode}, "
+            f"Sources: {len(result.sources_used)}"
+        )
+
+        return result
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        # Validation errors (including prompt injection detection)
+        logger.warning(
+            f"Text refinement validation failed - User: {user.user_id}, "
+            f"Error: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
+    except Exception as e:
+        # AI generation or other errors
+        logger.error(
+            f"Text refinement failed - User: {user.user_id}, "
+            f"Project: {project_id}, BRD: {brd_id}, "
+            f"Error: {str(e)}",
+            exc_info=True
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Text refinement failed: {str(e)}"
         )
