@@ -51,13 +51,18 @@ class BRD(BaseModel):
     document_count: int  # Number of source documents used
     total_citations: int
 
-    # BRD Sections (8 required sections)
+    # BRD Sections (13 required sections - industry standard)
     executive_summary: BRDSection
+    project_background: BRDSection
     business_objectives: BRDSection
+    project_scope: BRDSection
     stakeholders: BRDSection
     functional_requirements: BRDSection
     non_functional_requirements: BRDSection
+    dependencies: BRDSection
+    risks: BRDSection
     assumptions: BRDSection
+    cost_benefit: BRDSection
     success_metrics: BRDSection
     timeline: BRDSection
 

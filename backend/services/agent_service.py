@@ -79,11 +79,16 @@ class BRDAgentService:
             document_count=len(context["relevant_documents"]),
             total_citations=sum(len(s.citations) for s in sections.values()),
             executive_summary=sections["executive_summary"],
+            project_background=sections["project_background"],
             business_objectives=sections["business_objectives"],
+            project_scope=sections["project_scope"],
             stakeholders=sections["stakeholders"],
             functional_requirements=sections["functional_requirements"],
             non_functional_requirements=sections["non_functional_requirements"],
+            dependencies=sections["dependencies"],
+            risks=sections["risks"],
             assumptions=sections["assumptions"],
+            cost_benefit=sections["cost_benefit"],
             success_metrics=sections["success_metrics"],
             timeline=sections["timeline"],
             conflicts=conflicts,
@@ -92,6 +97,7 @@ class BRDAgentService:
                 "relevant_docs": len(context["relevant_documents"]),
                 "total_requirements": len(requirements),
                 "conflicts_detected": len(conflicts),
+                "sections_generated": 13,
                 "phases_completed": ["REASON", "ACT", "OBSERVE", "GENERATE"]
             }
         )
@@ -318,7 +324,9 @@ class BRDAgentService:
 
         section_contexts = {
             "executive_summary": base_context,
+            "project_background": {**base_context},
             "business_objectives": {**base_context},
+            "project_scope": {**base_context},
             "stakeholders": {
                 **base_context,
                 "stakeholders_list": json.dumps(stakeholders_list)
@@ -331,10 +339,13 @@ class BRDAgentService:
                 **base_context,
                 "non_functional_requirements": json.dumps(non_functional_reqs, indent=2)
             },
+            "dependencies": {**base_context},
+            "risks": {**base_context},
             "assumptions": {
                 **base_context,
                 "all_requirements": json.dumps(requirements, indent=2)
             },
+            "cost_benefit": {**base_context},
             "success_metrics": {
                 **base_context,
                 "business_objectives": base_context["requirements_summary"]  # Use requirements as proxy
