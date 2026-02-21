@@ -69,6 +69,24 @@ class AgentTools:
             # Extract AI metadata if available
             ai_metadata = doc_data.get("ai_metadata", {})
 
+            # Handle both old and new schema for content indicators
+            # Old: ai_metadata["contains"] = {"requirements": True, ...}
+            # New: ai_metadata["content_indicators"]["indicators"] = {"requirements": True, ...}
+            content_indicators = ai_metadata.get("content_indicators", {})
+            indicators = content_indicators.get("indicators", {})
+            # Fallback to old schema if new one not present
+            if not indicators:
+                indicators = ai_metadata.get("contains", {})
+
+            # Handle both old and new schema for topics
+            # Old: ai_metadata["topics"] = {"auth": 0.9, ...}
+            # New: ai_metadata["topic_relevance"]["topics"] = {"auth": 0.9, ...}
+            topic_relevance = ai_metadata.get("topic_relevance", {})
+            topics = topic_relevance.get("topics", {})
+            # Fallback to old schema
+            if not topics:
+                topics = ai_metadata.get("topics", {})
+
             docs.append({
                 "doc_id": doc.id,
                 "filename": doc_data.get("filename", ""),
@@ -77,9 +95,10 @@ class AgentTools:
                 # AI-generated metadata (for agent reasoning)
                 "summary": ai_metadata.get("summary", ""),
                 "tags": ai_metadata.get("tags", []),
-                "topics": ai_metadata.get("topics", {}),
-                "doc_type": ai_metadata.get("doc_type", "unknown"),
-                "contains": ai_metadata.get("contains", {}),
+                "topics": topics,
+                "doc_type": ai_metadata.get("document_type", ai_metadata.get("doc_type", "unknown")),
+                "contains": indicators,  # Domain-agnostic indicators
+                "ai_metadata": ai_metadata,  # Include full metadata for advanced filtering
 
                 # Key entities (for relevance assessment)
                 "key_stakeholders": ai_metadata.get("key_entities", {}).get("stakeholders", []),
