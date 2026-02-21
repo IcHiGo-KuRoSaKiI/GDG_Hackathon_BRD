@@ -22,7 +22,7 @@ PROJECT_ID="gdg-brd-generator-2026"
 REGION="us-central1"
 REPO_NAME="brd-generator"
 IMAGE_NAME="backend"
-IMAGE_TAG="${1:-latest}"
+IMAGE_TAG="${1:-$(git rev-parse --short HEAD)}"
 
 FULL_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:${IMAGE_TAG}"
 
