@@ -274,7 +274,7 @@ export default function ProjectDetailPage() {
                     {uploading ? 'Uploading...' : 'Click to upload or drag and drop'}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    PDF, DOCX, TXT, MD
+                    PDF, DOCX, PPTX, XLSX, CSV, TXT, MD, HTML
                   </p>
                 </div>
                 <input
@@ -282,7 +282,7 @@ export default function ProjectDetailPage() {
                   type="file"
                   className="hidden"
                   multiple
-                  accept=".pdf,.docx,.txt,.md"
+                  accept=".pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.html"
                   onChange={handleFileUpload}
                   disabled={uploading}
                 />

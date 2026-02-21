@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Download, FileText, Loader2, X } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Dialog,
   DialogContent,
@@ -87,9 +89,27 @@ export function DocumentViewer({ document, projectId, open, onClose }: DocumentV
           )}
 
           {!loading && !error && text && (
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
-              {text}
-            </pre>
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ children }) => (
+                    <div className="overflow-x-auto my-4">
+                      <table className="w-full border-collapse text-sm">{children}</table>
+                    </div>
+                  ),
+                  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+                  th: ({ children }) => (
+                    <th className="p-2 border text-left font-semibold">{children}</th>
+                  ),
+                  td: ({ children }) => (
+                    <td className="p-2 border">{children}</td>
+                  ),
+                }}
+              >
+                {text}
+              </ReactMarkdown>
+            </div>
           )}
         </div>
 

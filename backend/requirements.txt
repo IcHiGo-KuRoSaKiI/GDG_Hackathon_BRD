@@ -3,8 +3,8 @@
 # ============================================
 
 # Web Framework
-fastapi>=0.115.0
-uvicorn[standard]>=0.27.0
+fastapi==0.128.5
+uvicorn[standard]==0.40.0
 python-multipart==0.0.6
 
 # Firebase / Firestore
@@ -14,18 +14,19 @@ firebase-admin==6.4.0
 google-cloud-storage==2.14.0
 
 # AI/LLM - Gemini (native SDK for structured outputs)
-google-genai>=0.2.0
+google-genai==1.62.0
 
 # AI/LLM - Unified interface for other models
 litellm==1.17.9
 
 # Document Parsing
 chomper @ git+https://github.com/IcHiGo-KuRoSaKiI/Chomper.git@main
+pandas>=2.0.0
 
 # Utilities
 python-dotenv==1.0.0
-pydantic==2.5.3
-pydantic-settings==2.1.0
+pydantic==2.12.5
+pydantic-settings==2.12.0
 email-validator==2.3.0
 
 # Authentication

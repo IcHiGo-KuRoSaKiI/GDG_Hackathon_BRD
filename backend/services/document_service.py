@@ -173,7 +173,6 @@ class DocumentService:
         Parse document using Chomper library.
 
         Supports 36+ formats: PDF, DOCX, PPTX, XLSX, HTML, TXT, CSV, etc.
-        Falls back to raw text decode for unsupported formats.
 
         Args:
             file_data: File bytes
@@ -185,135 +184,58 @@ class DocumentService:
         """
         from ..config import settings
         import chomper
-        from chomper import ChomperError
+
+        # Parse document bytes (sync call → offload to thread pool)
+        result = await asyncio.to_thread(
+            chomper.parse_bytes, file_data, filename
+        )
+        full_text = result.text
+
+        # Chunk document (needs file path, so write temp file)
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=Path(filename).suffix
+        ) as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
 
         try:
-            # Parse document bytes (sync call → offload to thread pool)
-            result = await asyncio.to_thread(
-                chomper.parse_bytes, file_data, filename
+            chunk_results = await asyncio.to_thread(
+                chomper.chunk,
+                tmp_path,
+                strategy="auto",
+                chunk_size=settings.chunk_size,
+                overlap=settings.chunk_overlap,
             )
-            full_text = result.text
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
 
-            # Chunk document (needs file path, so write temp file)
-            with tempfile.NamedTemporaryFile(
-                delete=False, suffix=Path(filename).suffix
-            ) as tmp:
-                tmp.write(file_data)
-                tmp_path = tmp.name
-
-            try:
-                chunk_results = await asyncio.to_thread(
-                    chomper.chunk,
-                    tmp_path,
-                    strategy="auto",
-                    chunk_size=settings.chunk_size,
-                    overlap=settings.chunk_overlap,
-                )
-            finally:
-                Path(tmp_path).unlink(missing_ok=True)
-
-            # Convert Chomper ChunkResult → our Chunk model
-            chunks = []
-            for cr in chunk_results:
-                chunks.append(Chunk(
-                    chunk_id=generate_chunk_id(doc_id, cr.chunk_id),
-                    doc_id=doc_id,
-                    chunk_index=cr.chunk_id,
-                    text=cr.text,
-                    word_count=cr.word_count,
-                    start_position=cr.start_char,
-                    end_position=cr.end_char,
-                    keywords=getattr(cr, 'keywords', []),
-                    section_name=getattr(cr, 'section_name', None),
-                ))
-
-            # Build metadata from parse result
-            chomper_meta = ChomperMetadata(
-                format=result.format,
-                page_count=result.metadata.get('page_count'),
-                word_count=result.word_count,
-                char_count=result.char_count,
-                has_images=len(result.images) > 0,
-                has_tables='table' in full_text.lower(),
-            )
-
-            logger.info(f"Chomper parsed {filename}: {result.format}, {result.word_count} words")
-            return full_text, chunks, chomper_meta
-
-        except (ChomperError, Exception) as e:
-            logger.warning(f"Chomper failed for {filename}: {e}, falling back to text decode")
-
-            # Fallback: raw text decode for unsupported formats
-            try:
-                full_text = file_data.decode('utf-8')
-            except UnicodeDecodeError:
-                full_text = file_data.decode('latin-1', errors='ignore')
-
-            chunks = self._create_chunks(full_text, filename, doc_id)
-
-            chomper_meta = ChomperMetadata(
-                format=Path(filename).suffix.lstrip('.'),
-                word_count=len(full_text.split()),
-                char_count=len(full_text),
-                has_images=False,
-                has_tables=False
-            )
-
-            return full_text, chunks, chomper_meta
-
-    def _create_chunks(
-        self,
-        full_text: str,
-        filename: str,
-        doc_id: str
-    ) -> List[Chunk]:
-        """
-        Fallback text chunker (word-based) when Chomper is unavailable.
-
-        Args:
-            full_text: Full document text
-            filename: Original filename
-            doc_id: Document ID for chunk association
-
-        Returns:
-            List of Chunk models
-        """
-        from ..config import settings
-
-        chunk_size = settings.chunk_size
-        overlap = settings.chunk_overlap
-
-        words = full_text.split()
+        # Convert Chomper ChunkResult → our Chunk model
         chunks = []
-
-        i = 0
-        chunk_index = 0
-        while i < len(words):
-            # Get chunk words
-            chunk_words = words[i:i + chunk_size]
-            chunk_text = ' '.join(chunk_words)
-
-            # Calculate character positions
-            start_pos = full_text.find(chunk_words[0]) if chunk_words else 0
-            end_pos = start_pos + len(chunk_text)
-
-            chunk = Chunk(
-                chunk_id=generate_chunk_id(doc_id, chunk_index),
+        for cr in chunk_results:
+            chunks.append(Chunk(
+                chunk_id=generate_chunk_id(doc_id, cr.chunk_id),
                 doc_id=doc_id,
-                chunk_index=chunk_index,
-                text=chunk_text,
-                word_count=len(chunk_words),
-                start_position=start_pos,
-                end_position=end_pos
-            )
+                chunk_index=cr.chunk_id,
+                text=cr.text,
+                word_count=cr.word_count,
+                start_position=cr.start_char,
+                end_position=cr.end_char,
+                keywords=getattr(cr, 'keywords', []),
+                section_name=getattr(cr, 'section_name', None),
+            ))
 
-            chunks.append(chunk)
+        # Build metadata from parse result
+        chomper_meta = ChomperMetadata(
+            format=result.format,
+            page_count=result.metadata.get('page_count'),
+            word_count=result.word_count,
+            char_count=result.char_count,
+            has_images=len(result.images) > 0,
+            has_tables='table' in full_text.lower(),
+        )
 
-            # Move to next chunk with overlap
-            i += chunk_size - overlap
-            chunk_index += 1
-
-        return chunks
+        logger.info(f"Chomper parsed {filename}: {result.format}, {result.word_count} words")
+        return full_text, chunks, chomper_meta
 
 
 # Global service instance
