@@ -57,22 +57,13 @@ class RequirementsExtractionResponse(BaseModel):
     requirements: List[RequirementResponse]
 
 
-class ConflictRequirement(BaseModel):
-    """Requirement involved in a conflict."""
-    req_id: str
-    description: str
-    source: str = Field(description="Document filename")
-
-
 class ConflictResponse(BaseModel):
-    """Single conflict detected."""
-    conflict_id: str
-    severity: str = Field(description="high, medium, or low")
-    type: str = Field(description="specification, technical, timeline, resource, business_logic")
+    """Single conflict detected - matches Conflict model exactly."""
+    conflict_type: str = Field(description="specification, technical, timeline, resource, business_logic")
     description: str
-    requirements: List[ConflictRequirement]
-    impact: str
-    suggested_resolution: str
+    affected_requirements: List[str] = Field(description="List of req_ids involved in conflict")
+    severity: str = Field(description="high, medium, or low")
+    sources: List[str] = Field(description="List of doc_ids where requirements came from")
 
 
 class ConflictDetectionResponse(BaseModel):
@@ -81,10 +72,12 @@ class ConflictDetectionResponse(BaseModel):
 
 
 class CitationResponse(BaseModel):
-    """Citation for BRD section."""
-    id: int
-    doc_filename: str
+    """Citation for BRD section - matches Citation model exactly."""
+    doc_id: str
+    chunk_id: str
+    filename: str
     quote: str
+    relevance_score: float = Field(ge=0.0, le=1.0)
 
 
 class BRDSectionResponse(BaseModel):
