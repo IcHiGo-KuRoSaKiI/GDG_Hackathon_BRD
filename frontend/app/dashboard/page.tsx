@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Loader2 } from 'lucide-react'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
+import { Skeleton } from '@/components/ui/skeleton'
 import { getProjects } from '@/lib/api/projects'
 import { Project } from '@/lib/api/projects'
 
@@ -59,8 +59,17 @@ export default function DashboardPage() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border p-6 space-y-4">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-4 w-56" />
+              <div className="flex gap-4 pt-2">
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-20" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : error ? (
         <div className="space-y-4">
@@ -84,9 +93,9 @@ export default function DashboardPage() {
           {projects.map((project, index) => (
             <motion.div
               key={project.project_id}
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
+              transition={{ duration: 0.25, delay: Math.min(index * 0.06, 0.3) }}
             >
               <ProjectCard project={project} onDelete={handleDeleteProject} />
             </motion.div>

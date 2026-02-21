@@ -8,6 +8,8 @@ import logging
 from typing import List, Type, TypeVar
 from pydantic import BaseModel
 from ..config import genai_client, litellm_router, settings
+from ..utils.token_tracking import extract_gemini_usage
+from ..utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,7 @@ class AIService:
         self.genai_client = genai_client
         self.litellm_router = litellm_router
         self.model = settings.gemini_model
+        self.last_usage = None  # Token usage from last Gemini call
 
     def _is_gemini_model(self, model: str = None) -> bool:
         """Check if model is a Gemini model."""
@@ -64,22 +67,23 @@ class AIService:
             logger.debug(f"Prompt length: {len(prompt)} chars")
 
             # Run sync Gemini SDK call in thread pool with timeout
+            config = {
+                "response_mime_type": "application/json",
+                "response_json_schema": response_model.model_json_schema(),
+                "temperature": settings.gemini_temperature,
+                "max_output_tokens": settings.gemini_max_output_tokens,
+            }
             response = await asyncio.wait_for(
                 asyncio.to_thread(
-                    self.genai_client.models.generate_content,
-                    model=model,
-                    contents=prompt,
-                    config={
-                        "response_mime_type": "application/json",
-                        "response_json_schema": response_model.model_json_schema(),
-                        "temperature": settings.gemini_temperature,
-                        "max_output_tokens": settings.gemini_max_output_tokens,
-                    }
+                    self._call_gemini_structured, model, prompt, config
                 ),
                 timeout=120.0  # 120 second timeout for complex metadata
             )
 
             logger.info(f"✅ Gemini response received for {response_model.__name__}")
+
+            # Track token usage (accessible via ai_service.last_usage)
+            self.last_usage = extract_gemini_usage(response)
 
             # Check finish_reason for MAX_TOKENS bug
             if hasattr(response, 'candidates') and response.candidates:
@@ -143,6 +147,13 @@ class AIService:
         except Exception as e:
             logger.error(f"LiteLLM generation failed: {e}", exc_info=True)
             raise Exception(f"AI generation failed: {str(e)}")
+
+    @with_retry()
+    def _call_gemini_structured(self, model: str, contents: str, config: dict):
+        """Sync Gemini call with retry — used via asyncio.to_thread."""
+        return self.genai_client.models.generate_content(
+            model=model, contents=contents, config=config
+        )
 
     def _extract_json(self, text: str) -> str:
         """Extract JSON from markdown code blocks if present."""

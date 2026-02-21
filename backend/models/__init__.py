@@ -2,7 +2,7 @@
 Data models module exports.
 Provides easy access to all Pydantic models.
 """
-from .project import Project, ProjectCreate, ProjectResponse
+from .project import Project, ProjectCreate, ProjectUpdate, ProjectResponse
 from .document import (
     Document,
     DocumentStatus,
@@ -22,6 +22,7 @@ from .brd import (
     Conflict,
     Sentiment,
     BRDGenerateRequest,
+    UpdateBRDRequest,
     UpdateBRDSectionRequest,
     UpdateConflictStatusRequest,
     ConflictStatusEnum,
@@ -68,6 +69,7 @@ __all__ = [
     # Project models
     "Project",
     "ProjectCreate",
+    "ProjectUpdate",
     "ProjectResponse",
     # Document models
     "Document",
@@ -87,6 +89,7 @@ __all__ = [
     "Conflict",
     "Sentiment",
     "BRDGenerateRequest",
+    "UpdateBRDRequest",
     "UpdateBRDSectionRequest",
     "UpdateConflictStatusRequest",
     "ConflictStatusEnum",

@@ -17,6 +17,9 @@ from ..models import (
     AIMetadata
 )
 from ..utils import generate_doc_id, generate_chunk_id, sanitize_filename
+from ..utils.token_tracking import log_usage
+from ..config.firebase import firestore_client
+from ..config import settings
 from .storage_service import storage_service
 from .firestore_service import firestore_service
 from .gemini_service import gemini_service
@@ -112,6 +115,17 @@ class DocumentService:
             logger.info(f"  → Document type: {classification.document_type} (confidence: {classification.confidence:.2f})")
             logger.info(f"  → Summary: {ai_metadata.summary[:100]}...")
             logger.info(f"  → Tags: {', '.join(ai_metadata.tags[:5])}")
+
+            # Log AI token usage (both calls ran through ai_service)
+            usage = getattr(self.gemini.ai, 'last_usage', None)
+            if usage:
+                # Log combined usage for both parallel calls (approximate)
+                asyncio.create_task(log_usage(
+                    firestore_client, project_id, "ai_metadata",
+                    settings.gemini_model,
+                    usage["input_tokens"] * 2,  # 2 parallel calls
+                    usage["output_tokens"] * 2,
+                ))
 
             # Update AI metadata with classification (structured response)
             ai_metadata.document_type = classification.document_type

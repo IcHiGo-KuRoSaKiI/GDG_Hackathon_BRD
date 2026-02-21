@@ -28,6 +28,8 @@ from ..agent.tools import (
 )
 from ..config.firebase import firestore_client, storage_bucket
 from ..config import genai_client, settings
+from ..utils.token_tracking import calculate_cost, extract_gemini_usage, log_usage
+from ..utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -232,10 +234,10 @@ class BRDGenerationService:
             )
 
             # Accumulate token usage
-            usage = getattr(response, "usage_metadata", None)
+            usage = extract_gemini_usage(response)
             if usage:
-                total_input_tokens += getattr(usage, "prompt_token_count", 0) or 0
-                total_output_tokens += getattr(usage, "candidates_token_count", 0) or 0
+                total_input_tokens += usage["input_tokens"]
+                total_output_tokens += usage["output_tokens"]
 
             candidate = response.candidates[0]
             finish_reason = getattr(candidate, "finish_reason", None)
@@ -444,15 +446,19 @@ class BRDGenerationService:
         if missing:
             logger.warning(f"Missing sections: {missing}")
 
-        # Estimate cost (Gemini 2.5 Pro pricing: $1.25/1M input, $10/1M output)
-        cost_input = (total_input_tokens / 1_000_000) * 1.25
-        cost_output = (total_output_tokens / 1_000_000) * 10.0
-        estimated_cost = round(cost_input + cost_output, 4)
+        # Calculate cost using centralized pricing
+        estimated_cost = calculate_cost(self.model_name, total_input_tokens, total_output_tokens)
 
         logger.info(
             f"Token usage: {total_input_tokens} input + {total_output_tokens} output "
             f"= {total_input_tokens + total_output_tokens} total, ~${estimated_cost}"
         )
+
+        # Persist usage to project (fire-and-forget)
+        asyncio.create_task(log_usage(
+            firestore_client, project_id, "brd_generation",
+            self.model_name, total_input_tokens, total_output_tokens,
+        ))
 
         return {
             "sections": collected_sections,
@@ -468,6 +474,7 @@ class BRDGenerationService:
             },
         }
 
+    @with_retry()
     def _call_gemini_brd_gen(self, messages: List) -> Any:
         """Call Gemini with BRD generation tools."""
         return genai_client.models.generate_content(

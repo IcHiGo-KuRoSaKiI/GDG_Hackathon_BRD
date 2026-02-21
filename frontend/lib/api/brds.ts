@@ -48,6 +48,7 @@ export interface GenerationMetadata {
 export interface BRD {
   id: string
   project_id: string
+  title: string
   status: 'processing' | 'complete' | 'failed'
   sections: {
     executive_summary?: BRDSection
@@ -168,6 +169,7 @@ function transformBRD(raw: any): BRD {
   return {
     id: raw.brd_id ?? raw.id ?? '',
     project_id: raw.project_id ?? '',
+    title: raw.title ?? 'Untitled BRD',
     status: 'complete', // BRDs only exist in Firestore once generation finishes
     sections,
     conflicts: transformConflicts(raw.conflicts),
@@ -231,6 +233,22 @@ export async function refineText(
     request
   )
   return response.data
+}
+
+export interface UpdateBRDRequest {
+  title?: string
+}
+
+export async function updateBRD(
+  projectId: string,
+  brdId: string,
+  data: UpdateBRDRequest
+): Promise<BRD> {
+  const response = await apiClient.patch(
+    `/projects/${projectId}/brds/${brdId}`,
+    data
+  )
+  return transformBRD(response.data)
 }
 
 export async function updateBRDSection(

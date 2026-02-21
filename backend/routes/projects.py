@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List
 import logging
 
-from ..models import Project, ProjectCreate, ProjectResponse, User, DeletePreview, DeleteConfirmRequest, DeleteResponse, DeleteStatus
+from ..models import Project, ProjectCreate, ProjectUpdate, ProjectResponse, User, DeletePreview, DeleteConfirmRequest, DeleteResponse, DeleteStatus
 from ..services.firestore_service import firestore_service
 from ..services.auth_service import auth_service
 from ..services.deletion_service import deletion_service
@@ -173,6 +173,98 @@ async def get_project(
             status_code=500,
             detail=f"Failed to retrieve project: {str(e)}"
         )
+
+
+@router.patch("/{project_id}", response_model=Project)
+async def update_project(
+    project_id: str,
+    project_data: ProjectUpdate,
+    user: User = Depends(get_current_user)
+):
+    """
+    Update project name and/or description.
+
+    Only sends changed fields to Firestore.
+    """
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    try:
+        project = await firestore_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        if project.user_id != user.user_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this project")
+
+        # Build update dict from non-None fields only
+        updates = {}
+        if project_data.name is not None:
+            updates["name"] = project_data.name
+        if project_data.description is not None:
+            updates["description"] = project_data.description
+
+        if not updates:
+            return project
+
+        await firestore_service.update_project(project_id, updates)
+
+        # Return updated project
+        for key, val in updates.items():
+            setattr(project, key, val)
+        project.updated_at = datetime.utcnow()
+
+        return project
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update project {project_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{project_id}/usage")
+async def get_project_usage(
+    project_id: str,
+    user: User = Depends(get_current_user)
+):
+    """
+    Get LLM token usage and cost breakdown for a project.
+
+    Returns cumulative totals and per-service breakdown
+    (brd_generation, ai_metadata, chat).
+    """
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+
+    try:
+        doc_ref = firestore_service.client.collection("projects").document(project_id)
+        snapshot = await doc_ref.get()
+
+        if not snapshot.exists:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        data = snapshot.to_dict()
+        if data.get("user_id") != user.user_id:
+            raise HTTPException(status_code=403, detail="You don't have access to this project")
+
+        usage = data.get("usage", {})
+        return {
+            "project_id": project_id,
+            "total_input_tokens": usage.get("total_input_tokens", 0),
+            "total_output_tokens": usage.get("total_output_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0),
+            "total_cost_usd": round(usage.get("total_cost_usd", 0), 6),
+            "call_count": usage.get("call_count", 0),
+            "by_service": usage.get("by_service", {}),
+            "last_model": usage.get("last_model"),
+            "last_updated": usage.get("last_updated"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get usage for {project_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.delete("/{project_id}/preview", response_model=DeletePreview)

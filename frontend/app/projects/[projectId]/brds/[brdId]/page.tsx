@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, Cpu, DollarSign, Download, Loader2, MessageSquare, Zap } from 'lucide-react'
+import { CheckCircle2, Cpu, DollarSign, Download, MessageSquare, Pencil, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { getBRD, updateBRDSection, updateConflictStatus, BRD, Conflict, ConflictStatus } from '@/lib/api/brds'
+import { Input } from '@/components/ui/input'
+import { getBRD, updateBRD, updateBRDSection, updateConflictStatus, BRD, Conflict, ConflictStatus } from '@/lib/api/brds'
 import { BRDSectionTabs } from '@/components/brd/BRDSectionTabs'
 import { BRDSection } from '@/components/brd/BRDSection'
 import { ConflictPanel } from '@/components/brd/ConflictPanel'
@@ -12,9 +13,12 @@ import { RefineToolbar } from '@/components/brd/RefineToolbar'
 import { RefineChatPanel } from '@/components/brd/RefineChatPanel'
 import { useTextSelection } from '@/hooks/useTextSelection'
 import { useRefineText } from '@/hooks/useRefineText'
+import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/ui/breadcrumbs'
+import { getProject } from '@/lib/api/projects'
 import { formatRelativeTime } from '@/lib/utils/formatters'
 import { requirementToSectionKey } from '@/lib/utils/sectionMapping'
-import Link from 'next/link'
 
 const SECTION_TITLES: Record<string, string> = {
   executive_summary: 'Executive Summary',
@@ -38,6 +42,7 @@ export default function BRDViewerPage() {
   const brdId = params.brdId as string
 
   const [brd, setBRD] = useState<BRD | null>(null)
+  const [projectName, setProjectName] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [activeSection, setActiveSection] = useState('executive_summary')
@@ -45,7 +50,11 @@ export default function BRDViewerPage() {
   const [saving, setSaving] = useState(false)
   const [updatedSection, setUpdatedSection] = useState<string | null>(null)
   const [isResolvingConflict, setIsResolvingConflict] = useState(false)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [titleValue, setTitleValue] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const updatedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { toast } = useToast()
 
   // Callback ref so useTextSelection re-runs when the element mounts after loading
   const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null)
@@ -82,8 +91,13 @@ export default function BRDViewerPage() {
   const loadBRD = async () => {
     try {
       setLoading(true)
-      const data = await getBRD(projectId, brdId)
+      const [data, project] = await Promise.all([
+        getBRD(projectId, brdId),
+        getProject(projectId).catch(() => null),
+      ])
       setBRD(data)
+      setTitleValue(data.title)
+      if (project) setProjectName(project.name)
 
       if (data.sections) {
         const availableSections = Object.keys(data.sections).filter(
@@ -98,6 +112,39 @@ export default function BRDViewerPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const saveTitle = async () => {
+    const trimmed = titleValue.trim()
+    if (!trimmed || trimmed === brd?.title) {
+      setTitleValue(brd?.title || '')
+      setIsEditingTitle(false)
+      return
+    }
+    setIsEditingTitle(false)
+    try {
+      const updated = await updateBRD(projectId, brdId, { title: trimmed })
+      setBRD((prev) => prev ? { ...prev, title: updated.title } : prev)
+    } catch {
+      setTitleValue(brd?.title || '')
+      toast({ title: 'Failed to rename BRD', variant: 'destructive' })
+    }
+  }
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') saveTitle()
+    if (e.key === 'Escape') {
+      setTitleValue(brd?.title || '')
+      setIsEditingTitle(false)
+    }
+  }
+
+  const startEditingTitle = () => {
+    setIsEditingTitle(true)
+    setTimeout(() => {
+      titleInputRef.current?.focus()
+      titleInputRef.current?.select()
+    }, 0)
   }
 
   // Open the refine chat panel — snapshot selection into refs before clearing
@@ -323,7 +370,7 @@ export default function BRDViewerPage() {
   const handleExport = () => {
     if (!brd || !brd.sections) return
 
-    let markdown = `# Business Requirements Document\n\n`
+    let markdown = `# ${brd.title}\n\n`
     markdown += `Generated: ${new Date(brd.created_at).toLocaleDateString()}\n\n`
     markdown += `---\n\n`
 
@@ -356,8 +403,35 @@ export default function BRDViewerPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="h-screen flex flex-col">
+        {/* Header skeleton */}
+        <div className="px-4 md:px-8 pt-4 md:pt-8 pb-4 shrink-0">
+          <Skeleton className="h-9 w-36 mb-4 rounded-md" />
+          <Skeleton className="h-8 w-80 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        {/* Section tabs skeleton */}
+        <div className="px-4 md:px-8 py-2 border-b flex gap-2 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-8 rounded-full" style={{ width: `${80 + i * 12}px` }} />
+          ))}
+        </div>
+        {/* Content skeleton — prose lines */}
+        <div className="px-4 md:px-8 py-6 space-y-4 flex-1">
+          <Skeleton className="h-6 w-56 mb-6" />
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[92%]" />
+            <Skeleton className="h-4 w-[85%]" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[78%]" />
+          </div>
+          <div className="pt-4 space-y-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-[90%]" />
+            <Skeleton className="h-4 w-[70%]" />
+          </div>
+        </div>
       </div>
     )
   }
@@ -382,16 +456,44 @@ export default function BRDViewerPage() {
     <div className="h-screen flex flex-col">
       {/* Fixed header: title bar only */}
       <div className="px-4 md:px-8 pt-4 md:pt-8 pb-4 shrink-0">
-        <Link href={`/projects/${projectId}`}>
-          <Button variant="ghost" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Project
-          </Button>
-        </Link>
+        <Breadcrumbs
+          items={[
+            { label: 'Projects', href: '/dashboard' },
+            { label: projectName || 'Project', href: `/projects/${projectId}` },
+            { label: 'BRD' },
+          ]}
+          className="mb-4"
+        />
 
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
           <div className="min-w-0">
-            <h1 className="text-xl md:text-3xl font-bold mb-2">Business Requirements Document</h1>
+            <div className="group mb-2">
+              {isEditingTitle ? (
+                <Input
+                  ref={titleInputRef}
+                  value={titleValue}
+                  onChange={(e) => setTitleValue(e.target.value.slice(0, 300))}
+                  onBlur={saveTitle}
+                  onKeyDown={handleTitleKeyDown}
+                  maxLength={300}
+                  className="text-xl md:text-3xl font-bold
+                    border-transparent bg-transparent px-0 h-auto py-0
+                    focus-visible:ring-0 focus-visible:ring-offset-0
+                    focus-visible:border-b-2 focus-visible:border-primary
+                    focus-visible:rounded-none transition-colors"
+                />
+              ) : (
+                <div
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={startEditingTitle}
+                >
+                  <h1 className="text-xl md:text-3xl font-bold">{titleValue}</h1>
+                  <Pencil className="h-4 w-4 text-muted-foreground shrink-0
+                    opacity-50 md:opacity-0 md:group-hover:opacity-100
+                    transition-opacity" />
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap items-center gap-2 md:gap-3 text-sm text-muted-foreground">
               <span>
                 {brd.created_at && `Generated ${formatRelativeTime(brd.created_at)} · `}

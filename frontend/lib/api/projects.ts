@@ -34,3 +34,40 @@ export async function createProject(data: CreateProjectRequest): Promise<Project
 export async function deleteProject(projectId: string): Promise<void> {
   await apiClient.delete(`/projects/${projectId}`)
 }
+
+export interface UpdateProjectRequest {
+  name?: string
+  description?: string
+}
+
+export async function updateProject(
+  projectId: string,
+  data: UpdateProjectRequest
+): Promise<Project> {
+  const response = await apiClient.patch(`/projects/${projectId}`, data)
+  return response.data
+}
+
+export interface ServiceUsage {
+  input_tokens: number
+  output_tokens: number
+  cost_usd: number
+  calls: number
+}
+
+export interface ProjectUsage {
+  project_id: string
+  total_input_tokens: number
+  total_output_tokens: number
+  total_tokens: number
+  total_cost_usd: number
+  call_count: number
+  by_service: Record<string, ServiceUsage>
+  last_model?: string
+  last_updated?: string
+}
+
+export async function getProjectUsage(projectId: string): Promise<ProjectUsage> {
+  const response = await apiClient.get(`/projects/${projectId}/usage`)
+  return response.data
+}

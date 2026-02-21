@@ -52,10 +52,16 @@ class Sentiment(BaseModel):
     key_concerns: List[str] = Field(default_factory=list)
 
 
+class UpdateBRDRequest(BaseModel):
+    """Request model for renaming / updating a BRD."""
+    title: Optional[str] = Field(None, min_length=1, max_length=300)
+
+
 class BRD(BaseModel):
     """Complete Business Requirements Document."""
     brd_id: str
     project_id: str
+    title: str = "Untitled BRD"
 
     # Metadata
     generated_at: datetime

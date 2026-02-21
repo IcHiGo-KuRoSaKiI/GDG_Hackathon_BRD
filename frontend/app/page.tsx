@@ -10,6 +10,27 @@ import { Card, CardContent } from '@/components/ui/card'
 import { useAuthStore } from '@/lib/store/authStore'
 import { useThemeStore } from '@/lib/store/themeStore'
 
+const ease = [0.25, 0.1, 0.25, 1] as const
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  visible: (delay: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.35, delay, ease },
+  }),
+}
+
+const staggerContainer = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+}
+
+const staggerItem = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease } },
+}
+
 export default function HomePage() {
   const router = useRouter()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
@@ -75,9 +96,10 @@ export default function HomePage() {
       {/* Hero Section */}
       <main className="container mx-auto px-4 py-20">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+          variants={fadeUp}
+          initial="hidden"
+          animate="visible"
+          custom={0}
           className="text-center max-w-4xl mx-auto"
         >
           <h1 className="text-5xl md:text-6xl font-bold mb-6">
@@ -101,9 +123,10 @@ export default function HomePage() {
 
           {/* Process Flow */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            variants={fadeUp}
+            initial="hidden"
+            animate="visible"
+            custom={0.15}
             className="mt-16 flex items-center justify-center space-x-4 text-muted-foreground"
           >
             <div className="flex flex-col items-center">
@@ -131,22 +154,21 @@ export default function HomePage() {
 
         {/* Features */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
+          variants={staggerContainer}
+          initial="hidden"
+          animate="visible"
           className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto"
         >
           {features.map((feature, index) => (
-            <Card
-              key={index}
-              className="border-border/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-            >
-              <CardContent className="p-6">
-                <feature.icon className="h-12 w-12 text-primary mb-4" />
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </CardContent>
-            </Card>
+            <motion.div key={index} variants={staggerItem}>
+              <Card className="border-border/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+                <CardContent className="p-6">
+                  <feature.icon className="h-12 w-12 text-primary mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </motion.div>
       </main>
@@ -154,7 +176,7 @@ export default function HomePage() {
       {/* Footer */}
       <footer className="border-t border-border/50 mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
-          <p>© 2024 BRD Generator. Built with AI for the future.</p>
+          <p>© 2026 BRD Generator. Built with AI for the future.</p>
         </div>
       </footer>
     </div>

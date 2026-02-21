@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Upload, Loader2, FileText, Sparkles, Trash2 } from 'lucide-react'
+import { Upload, Loader2, FileText, Sparkles, Trash2, Zap, DollarSign, Activity } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { getProject } from '@/lib/api/projects'
+import { getProject, getProjectUsage, ProjectUsage } from '@/lib/api/projects'
 import { getDocuments, uploadDocument } from '@/lib/api/documents'
 import { getBRDs, generateBRD } from '@/lib/api/brds'
 import { Project } from '@/lib/api/projects'
@@ -20,8 +20,10 @@ import { DeleteBRDDialog } from '@/components/brd/DeleteBRDDialog'
 import { BRDListCard } from '@/components/brd/BRDListCard'
 import { GenerationProgressDialog } from '@/components/brd/GenerationProgressDialog'
 import { useBRDPolling } from '@/lib/hooks/useBRDPolling'
+import { EditableProjectHeader } from '@/components/projects/EditableProjectHeader'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { calculateFileHash, extractHashFromPath } from '@/lib/utils/fileHash'
-import Link from 'next/link'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -43,6 +45,7 @@ export default function ProjectDetailPage() {
   const [brdToDelete, setBRDToDelete] = useState<BRD | null>(null)
   const [activeTab, setActiveTab] = useState('documents')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [usage, setUsage] = useState<ProjectUsage | null>(null)
 
   // Polling hook for BRD generation progress
   const { progress, stage } = useBRDPolling({
@@ -52,6 +55,7 @@ export default function ProjectDetailPage() {
       setIsGenerating(false)
       setActiveTab('brds')
       loadBRDs()
+      loadUsage()
       toast({
         title: 'BRD generated successfully',
         description: 'Your Business Requirements Document is ready to view',
@@ -86,10 +90,19 @@ export default function ProjectDetailPage() {
     }
   }
 
+  const loadUsage = async () => {
+    try {
+      const data = await getProjectUsage(projectId)
+      if (data.call_count > 0) setUsage(data)
+    } catch {
+      // Non-critical — silently ignore
+    }
+  }
+
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      await Promise.all([loadProject(), loadDocuments(), loadBRDs()])
+      await Promise.all([loadProject(), loadDocuments(), loadBRDs(), loadUsage()])
       setLoading(false)
     }
     init()
@@ -208,8 +221,28 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="p-4 md:p-8 space-y-6">
+        {/* Header skeleton */}
+        <div>
+          <Skeleton className="h-5 w-32 mb-4" />
+          <Skeleton className="h-8 w-72 mb-2" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        {/* Tabs skeleton */}
+        <Skeleton className="h-10 w-64" />
+        {/* Cards skeleton */}
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-5 rounded-xl border border-border">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="flex-1 space-y-2">
+                <Skeleton className="h-4 w-48" />
+                <Skeleton className="h-3 w-32" />
+              </div>
+              <Skeleton className="h-6 w-20 rounded-full" />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -231,18 +264,56 @@ export default function ProjectDetailPage() {
     <div className="p-4 md:p-8">
       {/* Header */}
       <div className="mb-6 md:mb-8">
-        <Link href="/dashboard">
-          <Button variant="ghost" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Projects
-          </Button>
-        </Link>
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold mb-2">{project?.name}</h1>
-          {project?.description && (
-            <p className="text-muted-foreground">{project.description}</p>
-          )}
-        </div>
+        <Breadcrumbs
+          items={[
+            { label: 'Projects', href: '/dashboard' },
+            { label: project?.name || 'Project' },
+          ]}
+          className="mb-4"
+        />
+        {project && (
+          <EditableProjectHeader
+            project={project}
+            onUpdate={(updated) => setProject(updated)}
+          />
+        )}
+
+        {/* LLM Usage Summary */}
+        {usage && (
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/50 rounded-lg">
+              <span className="flex items-center gap-1.5 text-muted-foreground" title="Total tokens across all LLM calls">
+                <Zap className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">
+                  {usage.total_tokens >= 1_000_000
+                    ? `${(usage.total_tokens / 1_000_000).toFixed(1)}M`
+                    : `${(usage.total_tokens / 1000).toFixed(0)}k`}
+                </span>
+                <span>tokens</span>
+              </span>
+              <span className="text-muted-foreground/30">|</span>
+              <span className="flex items-center gap-1.5 text-muted-foreground" title="Estimated total LLM cost">
+                <DollarSign className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">${usage.total_cost_usd.toFixed(4)}</span>
+              </span>
+              <span className="text-muted-foreground/30">|</span>
+              <span className="flex items-center gap-1.5 text-muted-foreground" title="Total LLM API calls">
+                <Activity className="h-3.5 w-3.5" />
+                <span className="font-medium text-foreground">{usage.call_count}</span>
+                <span>calls</span>
+              </span>
+            </div>
+            {usage.by_service && Object.keys(usage.by_service).length > 0 && (
+              <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
+                {Object.entries(usage.by_service).map(([service, data]) => (
+                  <span key={service} className="px-2 py-1 bg-muted/30 rounded" title={`${data.calls} calls, $${data.cost_usd.toFixed(4)}`}>
+                    {service.replace(/_/g, ' ')}: ${data.cost_usd.toFixed(4)}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -308,9 +379,9 @@ export default function ProjectDetailPage() {
                 {documents.map((doc, index) => (
                   <motion.div
                     key={doc.doc_id}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
+                    transition={{ duration: 0.25, delay: Math.min(index * 0.06, 0.3) }}
                   >
                     <Card
                       className="cursor-pointer hover:bg-accent/50 transition-colors"
@@ -430,7 +501,12 @@ export default function ProjectDetailPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.1 }}
                 >
-                  <BRDListCard brd={brd} projectId={projectId} onDelete={handleDeleteBRD} />
+                  <BRDListCard
+                    brd={brd}
+                    projectId={projectId}
+                    onDelete={handleDeleteBRD}
+                    onUpdate={(updated) => setBRDs((prev) => prev.map((b) => b.id === updated.id ? updated : b))}
+                  />
                 </motion.div>
               ))}
             </div>

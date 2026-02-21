@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from typing import List
 import logging
 
-from ..models import BRD, BRDGenerateRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, UpdateConflictStatusRequest, User, ChatRequest, ChatResponse
+from ..models import BRD, BRDGenerateRequest, UpdateBRDRequest, RefineTextRequest, RefineTextResponse, UpdateBRDSectionRequest, UpdateConflictStatusRequest, User, ChatRequest, ChatResponse
 from ..models.brd import BRDSectionEnum
 from ..services.agent_service import agent_service
 from ..services.firestore_service import firestore_service
@@ -210,6 +210,45 @@ async def get_brd(project_id: str, brd_id: str):
             status_code=500,
             detail=f"Failed to retrieve BRD: {str(e)}"
         )
+
+
+@router.patch("/{brd_id}", response_model=BRD)
+async def update_brd(
+    project_id: str,
+    brd_id: str,
+    data: UpdateBRDRequest,
+    user: User = Depends(get_current_user),
+):
+    """Update BRD metadata (e.g. title)."""
+    if not validate_project_id(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project ID format")
+    if not validate_brd_id(brd_id):
+        raise HTTPException(status_code=400, detail="Invalid BRD ID format")
+
+    try:
+        brd = await firestore_service.get_brd(brd_id)
+        if not brd or brd.project_id != project_id:
+            raise HTTPException(status_code=404, detail="BRD not found")
+
+        updates = {}
+        if data.title is not None:
+            updates["title"] = data.title
+
+        if not updates:
+            return brd
+
+        doc_ref = firestore_service.client.collection("brds").document(brd_id)
+        await doc_ref.update(updates)
+
+        for key, val in updates.items():
+            setattr(brd, key, val)
+        return brd
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update BRD {brd_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.patch("/{brd_id}/sections/{section_key}")

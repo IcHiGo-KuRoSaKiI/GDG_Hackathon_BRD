@@ -35,6 +35,8 @@ from ..agent.tools import (
 )
 from ..config.firebase import firestore_client, storage_bucket
 from ..config import genai_client, settings
+from ..utils.token_tracking import extract_gemini_usage, calculate_cost, log_usage
+from ..utils.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -373,6 +375,7 @@ class TextRefinementService:
         logger.warning(f"Max iterations ({max_iterations}) reached")
         raise Exception("Maximum iterations reached without final answer")
 
+    @with_retry()
     def _call_gemini_with_tools(self, messages: List) -> Any:
         """
         Call Gemini with tools enabled (synchronous).
@@ -458,6 +461,15 @@ class TextRefinementService:
                 f"Tool calls: {len(result['tool_calls'])}"
             )
 
+            # Log token usage
+            in_tok = result.get('input_tokens', 0)
+            out_tok = result.get('output_tokens', 0)
+            if in_tok or out_tok:
+                asyncio.create_task(log_usage(
+                    firestore_client, project_id, "chat",
+                    self.model_name, in_tok, out_tok,
+                ))
+
             return ChatResponse(
                 content=result['content'],
                 response_type=ResponseType(result['response_type']),
@@ -504,6 +516,8 @@ class TextRefinementService:
         messages.append(types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)]))
         sources_used = set()
         tool_calls = []
+        total_input_tokens = 0
+        total_output_tokens = 0
         max_iterations = 8
 
         logger.info("Starting unified chat workflow")
@@ -515,6 +529,12 @@ class TextRefinementService:
                 self._call_gemini_unified,
                 messages
             )
+
+            # Accumulate token usage
+            usage = extract_gemini_usage(response)
+            if usage:
+                total_input_tokens += usage["input_tokens"]
+                total_output_tokens += usage["output_tokens"]
 
             candidate = response.candidates[0]
 
@@ -547,6 +567,8 @@ class TextRefinementService:
                                         'response_type': args.get('response_type', 'answer'),
                                         'sources_used': list(sources_used),
                                         'tool_calls': [t for t in tool_calls if t not in VIRTUAL_TOOLS],
+                                        'input_tokens': total_input_tokens,
+                                        'output_tokens': total_output_tokens,
                                     }
 
                             # Execute real tools
@@ -607,11 +629,14 @@ class TextRefinementService:
                 'response_type': 'answer',
                 'sources_used': list(sources_used),
                 'tool_calls': [t for t in tool_calls if t not in VIRTUAL_TOOLS],
+                'input_tokens': total_input_tokens,
+                'output_tokens': total_output_tokens,
             }
 
         logger.warning(f"Max iterations ({max_iterations}) reached in unified chat")
         raise Exception("Maximum iterations reached without final response")
 
+    @with_retry()
     def _call_gemini_unified(self, messages: List) -> Any:
         """Call Gemini with unified chat tools (document tools + submit_response)."""
         return genai_client.models.generate_content(
@@ -623,6 +648,20 @@ class TextRefinementService:
                 "top_p": 0.95,
                 "top_k": 40,
                 "max_output_tokens": 8192,
+            }
+        )
+
+    @with_retry()
+    def _call_gemini_structured(self, prompt: str, response_model: Any) -> Any:
+        """Sync Gemini structured output call with retry."""
+        return genai_client.models.generate_content(
+            model=self.model_name,
+            contents=prompt,
+            config={
+                "response_mime_type": "application/json",
+                "response_json_schema": response_model.model_json_schema(),
+                "temperature": 0.3,
+                "max_output_tokens": 2048,
             }
         )
 
@@ -648,17 +687,10 @@ class TextRefinementService:
         Returns:
             Parsed Pydantic model instance
         """
-        # Call Gemini in thread pool (blocking call)
+        # Call Gemini in thread pool (blocking call, with retry)
         response = await asyncio.to_thread(
-            genai_client.models.generate_content,
-            model=self.model_name,
-            contents=prompt,
-            config={
-                "response_mime_type": "application/json",
-                "response_json_schema": response_model.model_json_schema(),
-                "temperature": 0.3,
-                "max_output_tokens": 2048,
-            }
+            self._call_gemini_structured,
+            prompt, response_model,
         )
 
         # Parse JSON response into Pydantic model

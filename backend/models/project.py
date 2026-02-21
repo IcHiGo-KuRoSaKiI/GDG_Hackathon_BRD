@@ -13,6 +13,12 @@ class ProjectCreate(BaseModel):
     description: Optional[str] = None
 
 
+class ProjectUpdate(BaseModel):
+    """Request model for updating a project (partial)."""
+    name: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = None
+
+
 class Project(BaseModel):
     """Complete project model with metadata."""
     project_id: str
