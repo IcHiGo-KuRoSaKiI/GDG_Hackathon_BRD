@@ -1,14 +1,15 @@
 """
-Fully Agentic BRD Generation Service.
+RAG-based BRD Generation Service.
 
-Replaces the Python-orchestrated REACT pipeline with a true agentic loop
-where Gemini autonomously decides what documents to read, analyzes them,
-and generates BRD sections via virtual tool calls.
+Replaces the fully agentic loop (up to 30 Gemini iterations with document tools)
+with a RAG pipeline:
+1. Load all project chunks with embeddings from Firestore
+2. Embed section-specific queries
+3. Retrieve top-k relevant chunks via cosine similarity
+4. Pass pre-retrieved context to Gemini with virtual tools only
+5. Gemini generates sections via submit_brd_section (same interception pattern)
 
-Key concept: "Virtual tools" (submit_brd_section, submit_analysis) are
-intercepted before reaching ToolExecutor. Their function call arguments
-provide structured JSON without needing response_mime_type (which can't
-be combined with tools in the Gemini API).
+Key improvement: Reduces ~15-25 Gemini API calls to 1-3 calls.
 """
 
 import asyncio
@@ -21,43 +22,56 @@ from ..models.brd import BRD, BRDSection, Citation, Conflict, Sentiment
 from ..utils import generate_brd_id
 from ..utils.prompts import prompts
 from ..agent.tools import (
-    BRD_GENERATION_TOOLS,
+    RAG_BRD_GENERATION_TOOLS,
     VIRTUAL_TOOLS,
-    ToolExecutor,
-    AgentTools,
 )
 from ..config.firebase import firestore_client, storage_bucket
 from ..config import genai_client, settings
 from ..utils.token_tracking import calculate_cost, extract_gemini_usage, log_usage
 from ..utils.retry import with_retry
+from .embedding_service import embedding_service
+from .firestore_service import firestore_service
 
 logger = logging.getLogger(__name__)
 
 
 class BRDGenerationService:
     """
-    Fully agentic BRD generation.
+    RAG-based BRD generation.
 
-    The AI autonomously:
-    1. Lists project documents (list_project_documents)
-    2. Reads relevant documents (get_full_document_text)
-    3. Searches by topic/content as needed
-    4. Generates each BRD section (submit_brd_section virtual tool)
-    5. Submits analysis (submit_analysis virtual tool)
+    The pipeline:
+    1. Loads all project chunks (with embeddings) from Firestore
+    2. Generates queries for BRD section topics
+    3. Retrieves top-k relevant chunks via cosine similarity
+    4. Passes pre-retrieved context to Gemini in a single prompt
+    5. Gemini generates sections via submit_brd_section virtual tool
+    6. Gemini submits analysis via submit_analysis virtual tool
     """
+
+    # Section-specific retrieval queries for RAG
+    SECTION_QUERIES = [
+        "executive summary project overview objectives goals",
+        "project background context current situation business opportunity",
+        "business objectives goals targets success criteria SMART",
+        "project scope in scope out of scope boundaries deliverables",
+        "stakeholders roles responsibilities interests influence",
+        "functional requirements features capabilities user stories acceptance criteria",
+        "non-functional requirements performance security scalability reliability",
+        "dependencies external systems vendors integrations prerequisites",
+        "risks mitigation risk assessment probability impact",
+        "assumptions constraints limitations budget timeline resource",
+        "cost benefit analysis ROI budget investment return",
+        "success metrics KPIs measurement targets evaluation",
+        "timeline milestones phases schedule deadlines critical path",
+        "conflicts contradictions disagreements stakeholder concerns sentiment",
+    ]
 
     def __init__(self):
         self.model_name = settings.gemini_model
+        self.embedding_service = embedding_service
 
-        # Initialize agent tools for document access
-        tools = AgentTools(
-            firestore_client=firestore_client,
-            storage_client=storage_bucket.client,
-        )
-        self.tool_executor = ToolExecutor(tools)
-
-        # Build Gemini tool declarations for BRD generation
-        self._brd_gen_tools = [
+        # Build Gemini tool declarations — virtual tools only (no document tools)
+        self._rag_tools = [
             types.Tool(
                 function_declarations=[
                     types.FunctionDeclaration(
@@ -65,14 +79,14 @@ class BRDGenerationService:
                         description=schema["description"],
                         parameters_json_schema=schema["parameters"],
                     )
-                    for schema in BRD_GENERATION_TOOLS
+                    for schema in RAG_BRD_GENERATION_TOOLS
                 ]
             )
         ]
 
     async def generate_brd(self, project_id: str) -> BRD:
         """
-        Generate a complete BRD using the fully agentic pipeline.
+        Generate a complete BRD using the RAG pipeline.
 
         Args:
             project_id: Project ID to generate BRD for
@@ -80,16 +94,10 @@ class BRDGenerationService:
         Returns:
             Complete BRD model with all 13 sections
         """
-        logger.info(f"Starting agentic BRD generation for project {project_id}")
+        logger.info(f"Starting RAG-based BRD generation for project {project_id}")
 
-        # Format the agentic prompt
-        prompt = prompts.format(
-            "brd_generation_agentic",
-            project_id=project_id,
-        )
-
-        # Execute the agentic workflow
-        result = await self._execute_brd_generation_workflow(prompt, project_id)
+        # Execute the RAG workflow
+        result = await self._execute_brd_generation_workflow(project_id)
 
         # Assemble BRD model from collected sections + analysis
         brd_id = generate_brd_id()
@@ -176,60 +184,154 @@ class BRDGenerationService:
             sentiment=sentiment,
             # Metadata
             generation_metadata={
-                "pipeline": "fully_agentic",
+                "pipeline": "rag",
                 "model": self.model_name,
                 "sections_generated": len(sections),
                 "tool_calls": result.get("tool_calls", []),
                 "sources_used": result.get("sources_used", []),
                 "iterations": result.get("iterations", 0),
                 "token_usage": result.get("token_usage", {}),
+                "chunks_retrieved": result.get("chunks_retrieved", 0),
             },
         )
 
         logger.info(
-            f"Agentic BRD generation complete: {brd_id} — "
+            f"RAG BRD generation complete: {brd_id} — "
             f"{len(sections)} sections, {len(conflicts)} conflicts, "
-            f"{len(result.get('tool_calls', []))} tool calls"
+            f"{result.get('chunks_retrieved', 0)} chunks retrieved"
         )
         return brd
 
     async def _execute_brd_generation_workflow(
         self,
-        initial_prompt: str,
         project_id: str,
     ) -> Dict[str, Any]:
         """
-        Execute the agentic BRD generation loop.
+        Execute the RAG-based BRD generation pipeline.
 
-        The AI calls document tools to gather info, then submits sections
-        via submit_brd_section and analysis via submit_analysis.
-
-        Args:
-            initial_prompt: Formatted BRD generation prompt
-            project_id: Project ID for tool execution
-
-        Returns:
-            Dict with sections, analysis, sources_used, tool_calls, iterations
+        Steps:
+        1. Load all project chunks with embeddings
+        2. Retrieve relevant chunks using multi-query similarity search
+        3. Build document summaries from metadata
+        4. Format RAG prompt with pre-retrieved context
+        5. Call Gemini with virtual tools only
+        6. Intercept virtual tool calls to collect sections + analysis
         """
-        messages = [types.Content(role="user", parts=[types.Part.from_text(text=initial_prompt)])]
-        sources_used = set()
+        # Step 1: Load chunks with embeddings
+        logger.info("RAG Step 1: Loading project chunks with embeddings")
+        chunks = await firestore_service.get_project_chunks_with_embeddings(project_id)
+        logger.info(f"Loaded {len(chunks)} chunks with embeddings")
+
+        if not chunks:
+            logger.warning("No chunks with embeddings found — proceeding with empty context")
+
+        # Step 2: Retrieve relevant chunks via multi-query search
+        logger.info("RAG Step 2: Retrieving relevant chunks via similarity search")
+        relevant_chunks = []
+        if chunks:
+            relevant_chunks = await self.embedding_service.retrieve_for_multiple_queries(
+                queries=self.SECTION_QUERIES,
+                chunks_with_embeddings=chunks,
+                top_k_per_query=settings.rag_top_k,
+            )
+        logger.info(f"Retrieved {len(relevant_chunks)} unique relevant chunks")
+
+        # Step 3: Build document summaries
+        logger.info("RAG Step 3: Building document summaries")
+        document_summaries = await self._build_document_summaries(project_id)
+
+        # Step 4: Format the RAG prompt
+        logger.info("RAG Step 4: Formatting RAG prompt with retrieved context")
+        retrieved_context = self._format_retrieved_context(relevant_chunks)
+
+        prompt = prompts.format(
+            "brd_generation_rag",
+            project_id=project_id,
+            document_count=len(set(c.get("doc_id", "") for c in relevant_chunks)),
+            chunk_count=len(relevant_chunks),
+            document_summaries=document_summaries,
+            retrieved_context=retrieved_context,
+        )
+
+        # Step 5-6: Call Gemini and intercept responses
+        logger.info("RAG Step 5: Calling Gemini with pre-retrieved context")
+        result = await self._execute_rag_generation_loop(prompt, project_id, relevant_chunks)
+
+        return result
+
+    async def _build_document_summaries(self, project_id: str) -> str:
+        """Build document summaries from Firestore metadata."""
+        docs_ref = firestore_client.collection("documents")
+        query = docs_ref.where("project_id", "==", project_id)
+
+        summaries = []
+        async for doc in query.stream():
+            data = doc.to_dict()
+            ai_meta = data.get("ai_metadata", {})
+            summary = ai_meta.get("summary", "No summary available")
+            tags = ai_meta.get("tags", [])
+            doc_type = ai_meta.get("document_type", "unknown")
+            filename = data.get("filename", "unknown")
+
+            summaries.append(
+                f"- **{filename}** (doc_id: {doc.id}, type: {doc_type})\n"
+                f"  Summary: {summary}\n"
+                f"  Tags: {', '.join(tags[:8])}"
+            )
+
+        return "\n".join(summaries) if summaries else "(No documents found)"
+
+    @staticmethod
+    def _format_retrieved_context(chunks: List[Dict[str, Any]]) -> str:
+        """Format retrieved chunks into a text block for the prompt."""
+        if not chunks:
+            return "(No relevant chunks retrieved. Generate sections noting insufficient data.)"
+
+        context_parts = []
+        for i, chunk in enumerate(chunks):
+            header = (
+                f"--- CHUNK {i+1}/{len(chunks)} ---\n"
+                f"chunk_id: {chunk.get('chunk_id', 'unknown')}\n"
+                f"doc_id: {chunk.get('doc_id', 'unknown')}\n"
+                f"filename: {chunk.get('filename', 'unknown')}\n"
+                f"similarity_score: {chunk.get('similarity_score', 0.0)}\n"
+                f"chunk_index: {chunk.get('chunk_index', 0)}\n"
+            )
+            text = chunk.get("text", "")
+            context_parts.append(f"{header}\n{text}\n")
+
+        return "\n".join(context_parts)
+
+    async def _execute_rag_generation_loop(
+        self,
+        prompt: str,
+        project_id: str,
+        relevant_chunks: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Execute the Gemini generation loop with virtual tools only.
+
+        Simplified version of the old agentic loop — no document tools,
+        only intercepts submit_brd_section and submit_analysis.
+        Typically completes in 1-3 iterations.
+        """
+        messages = [types.Content(role="user", parts=[types.Part.from_text(text=prompt)])]
+        sources_used = set(c.get("filename", "") for c in relevant_chunks if c.get("filename"))
         tool_calls = []
         collected_sections: Dict[str, Dict] = {}
         collected_analysis: Dict[str, Any] = {}
         total_input_tokens = 0
         total_output_tokens = 0
-        max_iterations = 30
-
-        logger.info("Starting agentic BRD generation workflow")
+        max_iterations = settings.rag_max_iterations
 
         for iteration in range(max_iterations):
             logger.info(
-                f"BRD gen iteration {iteration + 1}/{max_iterations} — "
+                f"RAG generation iteration {iteration + 1}/{max_iterations} — "
                 f"{len(collected_sections)} sections collected"
             )
 
             response = await asyncio.to_thread(
-                self._call_gemini_brd_gen,
+                self._call_gemini_rag,
                 messages,
             )
 
@@ -244,12 +346,8 @@ class BRDGenerationService:
 
             if not candidate.content or not candidate.content.parts:
                 finish_str = str(finish_reason) if finish_reason else "unknown"
-                logger.warning(
-                    f"Empty response from Gemini (finish_reason={finish_str})"
-                )
+                logger.warning(f"Empty response from Gemini (finish_reason={finish_str})")
 
-                # Handle malformed function calls — Gemini sometimes outputs
-                # Python-style dicts instead of valid JSON for complex schemas
                 if "MALFORMED_FUNCTION_CALL" in finish_str:
                     logger.info("Retrying after malformed function call")
                     messages.append(
@@ -258,28 +356,23 @@ class BRDGenerationService:
                             parts=[types.Part.from_text(
                                 text=(
                                     "Your previous function call was malformed. "
-                                    "When calling tools, all arguments MUST be valid JSON "
-                                    "with double-quoted strings. Do NOT use single quotes "
-                                    "or unquoted values. Try the same call again with "
-                                    "properly formatted JSON arguments."
+                                    "All arguments MUST be valid JSON with double-quoted strings. "
+                                    "Try the same call again with properly formatted JSON."
                                 )
                             )],
                         )
                     )
                     continue
 
-                # If we haven't collected any sections yet, nudge the AI
                 if not collected_sections:
-                    logger.info("Nudging AI to begin section generation")
                     messages.append(
                         types.Content(
                             role="user",
                             parts=[types.Part.from_text(
                                 text=(
                                     "You returned an empty response. Please begin generating "
-                                    "BRD sections now. Start by calling submit_brd_section "
-                                    "for the executive_summary section, then continue with "
-                                    "the remaining sections one at a time."
+                                    "BRD sections now by calling submit_brd_section for each "
+                                    "of the 13 sections, using the retrieved context provided."
                                 )
                             )],
                         )
@@ -293,7 +386,6 @@ class BRDGenerationService:
             )
 
             if not has_function_calls:
-                # AI stopped making calls — we're done
                 text_preview = ""
                 for part in candidate.content.parts:
                     if hasattr(part, "text") and part.text:
@@ -316,7 +408,7 @@ class BRDGenerationService:
                 logger.info(f"AI called tool: {fn_name}")
                 tool_calls.append(fn_name)
 
-                # Intercept virtual tools
+                # Intercept submit_brd_section (same logic as before)
                 if fn_name == "submit_brd_section":
                     args = dict(function_call.args)
                     section_key = args.get("section_key", "unknown")
@@ -327,7 +419,6 @@ class BRDGenerationService:
                     }
                     logger.info(f"Collected section: {section_key} ({len(args.get('content', ''))} chars)")
 
-                    # Acknowledge receipt so AI knows to continue
                     function_response_parts.append(
                         types.Part.from_function_response(
                             name=fn_name,
@@ -336,15 +427,15 @@ class BRDGenerationService:
                     )
                     continue
 
+                # Intercept submit_analysis (same logic as before)
                 if fn_name == "submit_analysis":
                     args = dict(function_call.args)
 
-                    # Parse flattened conflicts — inner arrays are comma-separated strings
+                    # Parse flattened conflicts
                     raw_conflicts = list(args.get("conflicts", []))
                     parsed_conflicts = []
                     for c in raw_conflicts:
                         c = dict(c) if not isinstance(c, dict) else c
-                        # Split comma-separated strings back into lists
                         aff = c.get("affected_requirements", "")
                         src = c.get("sources", "")
                         parsed_conflicts.append({
@@ -355,7 +446,7 @@ class BRDGenerationService:
                             "sources": [s.strip() for s in src.split(",") if s.strip()] if isinstance(src, str) else list(src),
                         })
 
-                    # Parse flattened sentiment — stakeholder_sentiments is semicolon-separated
+                    # Parse flattened sentiment
                     stakeholder_str = args.get("stakeholder_sentiments", "")
                     stakeholder_breakdown = {}
                     if stakeholder_str:
@@ -390,42 +481,14 @@ class BRDGenerationService:
                     )
                     continue
 
-                # Execute real tools
-                try:
-                    args = dict(function_call.args)
-                    if "project_id" in args:
-                        args["project_id"] = project_id
-
-                    result = await self.tool_executor.execute(fn_name, args)
-
-                    # Track sources
-                    if fn_name == "get_full_document_text":
-                        if isinstance(result, dict) and "filename" in result:
-                            sources_used.add(result["filename"])
-                    elif fn_name == "list_project_documents":
-                        if isinstance(result, list):
-                            for doc in result:
-                                if isinstance(doc, dict) and "filename" in doc:
-                                    sources_used.add(doc["filename"])
-
-                    if not isinstance(result, dict):
-                        result = {"result": str(result)}
-
-                    function_response_parts.append(
-                        types.Part.from_function_response(
-                            name=fn_name,
-                            response=result,
-                        )
+                # Unexpected tool call
+                logger.warning(f"Unexpected tool call: {fn_name}")
+                function_response_parts.append(
+                    types.Part.from_function_response(
+                        name=fn_name,
+                        response={"error": f"Unknown tool: {fn_name}"},
                     )
-
-                except Exception as e:
-                    logger.error(f"Tool execution failed ({fn_name}): {e}")
-                    function_response_parts.append(
-                        types.Part.from_function_response(
-                            name=fn_name,
-                            response={"error": str(e)},
-                        )
-                    )
+                )
 
             # Feed function responses back to Gemini
             if function_response_parts:
@@ -446,7 +509,7 @@ class BRDGenerationService:
         if missing:
             logger.warning(f"Missing sections: {missing}")
 
-        # Calculate cost using centralized pricing
+        # Calculate cost
         estimated_cost = calculate_cost(self.model_name, total_input_tokens, total_output_tokens)
 
         logger.info(
@@ -454,7 +517,7 @@ class BRDGenerationService:
             f"= {total_input_tokens + total_output_tokens} total, ~${estimated_cost}"
         )
 
-        # Persist usage to project (fire-and-forget)
+        # Persist usage (fire-and-forget)
         asyncio.create_task(log_usage(
             firestore_client, project_id, "brd_generation",
             self.model_name, total_input_tokens, total_output_tokens,
@@ -466,6 +529,7 @@ class BRDGenerationService:
             "sources_used": list(sources_used),
             "tool_calls": [t for t in tool_calls if t not in VIRTUAL_TOOLS],
             "iterations": min(iteration + 1, max_iterations),
+            "chunks_retrieved": len(relevant_chunks),
             "token_usage": {
                 "input_tokens": total_input_tokens,
                 "output_tokens": total_output_tokens,
@@ -475,13 +539,13 @@ class BRDGenerationService:
         }
 
     @with_retry()
-    def _call_gemini_brd_gen(self, messages: List) -> Any:
-        """Call Gemini with BRD generation tools."""
+    def _call_gemini_rag(self, messages: List) -> Any:
+        """Call Gemini with RAG tools (virtual tools only)."""
         return genai_client.models.generate_content(
             model=self.model_name,
             contents=messages,
             config={
-                "tools": self._brd_gen_tools,
+                "tools": self._rag_tools,
                 "temperature": 0.2,
                 "top_p": 0.95,
                 "top_k": 40,

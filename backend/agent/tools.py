@@ -431,11 +431,12 @@ SUBMIT_BRD_SECTION_SCHEMA = {
             },
             "citations": {
                 "type": "array",
-                "description": "Source citations from project documents",
+                "description": "Source citations from project documents. Use chunk_id and doc_id from retrieved context.",
                 "items": {
                     "type": "object",
                     "properties": {
                         "doc_id": {"type": "string", "description": "Document ID"},
+                        "chunk_id": {"type": "string", "description": "Chunk ID for precise citation tracking"},
                         "filename": {"type": "string", "description": "Source filename"},
                         "quote": {"type": "string", "description": "Exact quote from document"},
                         "relevance_score": {"type": "number", "description": "0.0-1.0 relevance"}
@@ -512,6 +513,10 @@ VIRTUAL_TOOLS = {"submit_response", "submit_brd_section", "submit_analysis"}
 # Combined tool sets for different workflows
 UNIFIED_CHAT_TOOLS = AGENT_TOOLS_SCHEMAS + [SUBMIT_RESPONSE_SCHEMA]
 BRD_GENERATION_TOOLS = AGENT_TOOLS_SCHEMAS + [SUBMIT_BRD_SECTION_SCHEMA, SUBMIT_ANALYSIS_SCHEMA]
+
+# RAG-based BRD generation — virtual tools only, no document access tools
+# Context is pre-retrieved via embedding similarity search
+RAG_BRD_GENERATION_TOOLS = [SUBMIT_BRD_SECTION_SCHEMA, SUBMIT_ANALYSIS_SCHEMA]
 
 
 # ============================================

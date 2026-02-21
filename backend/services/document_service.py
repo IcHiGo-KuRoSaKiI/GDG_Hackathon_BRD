@@ -23,6 +23,7 @@ from ..config import settings
 from .storage_service import storage_service
 from .firestore_service import firestore_service
 from .gemini_service import gemini_service
+from .embedding_service import embedding_service
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +81,7 @@ class DocumentService:
             await self.firestore.create_document(document)
 
             # 2. Upload to Cloud Storage
-            logger.info(f"📤 [1/5] Uploading {filename} to Cloud Storage...")
+            logger.info(f"📤 [1/6] Uploading {filename} to Cloud Storage...")
             await self.storage.upload_file(file_data, document.storage_path)
             logger.info(f"✅ Upload complete: {document.storage_path}")
 
@@ -88,7 +89,7 @@ class DocumentService:
             document.status = DocumentStatus.PROCESSING
             await self.firestore.update_document(doc_id, {"status": "processing"})
 
-            logger.info(f"📄 [2/5] Parsing {filename} with Chomper...")
+            logger.info(f"📄 [2/6] Parsing {filename} with Chomper...")
             full_text, chunks, chomper_meta = await self._parse_with_chomper(
                 file_data,
                 filename,
@@ -97,7 +98,7 @@ class DocumentService:
             logger.info(f"✅ Parsed {len(full_text)} chars into {len(chunks)} chunks")
 
             # 4 & 5. Classify and generate metadata in parallel
-            logger.info(f"🤖 [3/5] Running AI analysis on {filename} (2 parallel tasks)...")
+            logger.info(f"🤖 [3/6] Running AI analysis on {filename} (2 parallel tasks)...")
             content_preview = full_text[:500]
 
             logger.info(f"  → Starting document classification...")
@@ -131,8 +132,19 @@ class DocumentService:
             ai_metadata.document_type = classification.document_type
             ai_metadata.confidence = classification.confidence
 
-            # 6. Store parsed text and chunks
-            logger.info(f"💾 [4/5] Storing parsed text and {len(chunks)} chunks...")
+            # 6. Generate embeddings for chunks (RAG)
+            logger.info(f"🧠 [4/6] Generating embeddings for {len(chunks)} chunks...")
+            try:
+                chunk_texts = [chunk.text for chunk in chunks]
+                embeddings = await embedding_service.embed_texts(chunk_texts)
+                for chunk, embedding in zip(chunks, embeddings):
+                    chunk.embedding = embedding
+                logger.info(f"✅ Generated {len(embeddings)} embeddings ({settings.embedding_dimensions}-dim)")
+            except Exception as e:
+                logger.warning(f"⚠️ Embedding generation failed (non-fatal): {e}")
+
+            # 7. Store parsed text and chunks (with embeddings)
+            logger.info(f"💾 [5/6] Storing parsed text and {len(chunks)} chunks...")
 
             # Store full text in Cloud Storage
             text_path = f"projects/{project_id}/documents/{doc_id}/text.txt"
@@ -142,8 +154,8 @@ class DocumentService:
             await self.firestore.store_chunks(chunks)
             logger.info(f"✅ Storage complete")
 
-            # 7. Update document with complete status
-            logger.info(f"📝 [5/5] Finalizing document record...")
+            # 8. Update document with complete status
+            logger.info(f"📝 [6/6] Finalizing document record...")
             document.status = DocumentStatus.COMPLETE
             document.processed_at = datetime.utcnow()
             document.text_path = text_path

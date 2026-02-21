@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     chunk_size: int = 1000  # Words per chunk for citations
     chunk_overlap: int = 100  # Words overlap between chunks
 
+    # RAG / Embedding Configuration
+    embedding_model: str = "text-embedding-004"
+    embedding_dimensions: int = 768  # text-embedding-004 output dimensions
+    rag_top_k: int = 20  # Chunks to retrieve per query
+    rag_similarity_threshold: float = 0.3  # Minimum cosine similarity
+    rag_max_iterations: int = 5  # Max Gemini loop iterations (down from 30)
+
     class Config:
         # Look for .env in project root (parent of backend/)
         import os

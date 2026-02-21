@@ -112,7 +112,7 @@ class ChomperMetadata(BaseModel):
 
 
 class Chunk(BaseModel):
-    """Text chunk for citation tracking."""
+    """Text chunk for citation tracking and RAG retrieval."""
     chunk_id: str
     doc_id: str
     chunk_index: int
@@ -122,6 +122,10 @@ class Chunk(BaseModel):
     end_position: int
     keywords: List[str] = Field(default_factory=list)
     section_name: Optional[str] = None
+    embedding: Optional[List[float]] = Field(
+        default=None,
+        description="768-dim embedding vector from text-embedding-004"
+    )
 
 
 class Document(BaseModel):

@@ -2,7 +2,7 @@
 Firestore database service.
 Async CRUD operations for all entities.
 """
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 from google.cloud.firestore_v1 import AsyncClient
 from google.cloud.firestore import Increment
@@ -184,6 +184,75 @@ class FirestoreService:
             chunks.append(Chunk(**data))
 
         return chunks
+
+    async def get_project_chunks_with_embeddings(self, project_id: str) -> List[Dict]:
+        """
+        Load all chunks for a project that have embeddings.
+
+        Joins through documents collection to find all chunks belonging
+        to a project, then filters for those with embeddings.
+
+        Args:
+            project_id: Project ID
+
+        Returns:
+            List of chunk dicts with embedding vectors included
+        """
+        # Get all doc_ids for this project
+        docs_query = self.client.collection("documents").where("project_id", "==", project_id)
+        doc_ids = []
+        doc_metadata = {}
+
+        async for doc in docs_query.stream():
+            data = doc.to_dict()
+            doc_ids.append(doc.id)
+            doc_metadata[doc.id] = {
+                "filename": data.get("filename", ""),
+                "doc_id": doc.id,
+            }
+
+        if not doc_ids:
+            return []
+
+        # Firestore 'in' queries support max 30 values
+        all_chunks = []
+        batch_size = 30
+
+        for i in range(0, len(doc_ids), batch_size):
+            batch_ids = doc_ids[i:i + batch_size]
+            chunks_query = self.client.collection("chunks").where("doc_id", "in", batch_ids)
+
+            async for chunk_doc in chunks_query.stream():
+                chunk_data = chunk_doc.to_dict()
+                if chunk_data.get("embedding"):
+                    chunk_data["filename"] = doc_metadata.get(
+                        chunk_data.get("doc_id", ""), {}
+                    ).get("filename", "")
+                    all_chunks.append(chunk_data)
+
+        all_chunks.sort(key=lambda c: (c.get("doc_id", ""), c.get("chunk_index", 0)))
+        return all_chunks
+
+    async def update_chunks_embeddings_batch(
+        self, chunk_embedding_pairs: List[Tuple[str, List[float]]]
+    ) -> None:
+        """
+        Batch update embeddings for multiple chunks (for backfill).
+
+        Args:
+            chunk_embedding_pairs: List of (chunk_id, embedding_vector) tuples
+        """
+        batch_size = 500
+
+        for i in range(0, len(chunk_embedding_pairs), batch_size):
+            batch = self.client.batch()
+            batch_pairs = chunk_embedding_pairs[i:i + batch_size]
+
+            for chunk_id, embedding in batch_pairs:
+                doc_ref = self.client.collection("chunks").document(chunk_id)
+                batch.update(doc_ref, {"embedding": embedding})
+
+            await batch.commit()
 
     # ============================================================
     # BRDS
