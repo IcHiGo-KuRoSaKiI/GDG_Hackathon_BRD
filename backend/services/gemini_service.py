@@ -1,6 +1,7 @@
 """
-Gemini AI service via LiteLLM with structured outputs.
-All AI operations using Pydantic models for guaranteed JSON structure.
+Gemini AI service via LiteLLM.
+All AI operations using Pydantic validation after generation.
+No response_format parameter - Gemini doesn't support it.
 """
 import logging
 from typing import List
@@ -25,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiService:
-    """Service for Gemini AI operations via LiteLLM with structured outputs."""
+    """Service for Gemini AI operations via LiteLLM."""
 
     def __init__(self):
         """Initialize Gemini service with LiteLLM router."""
@@ -36,16 +37,7 @@ class GeminiService:
         filename: str,
         content_preview: str
     ) -> DocumentClassificationResponse:
-        """
-        Classify document type using structured output.
-
-        Args:
-            filename: Original filename
-            content_preview: First ~500 characters of document
-
-        Returns:
-            DocumentClassificationResponse with type, confidence, reasoning
-        """
+        """Classify document type."""
         prompt = prompts.format(
             "document_classification",
             filename=filename,
@@ -55,54 +47,42 @@ class GeminiService:
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
+                messages=[{"role": "user", "content": prompt}]
             )
 
             # Parse response using Pydantic
             result = DocumentClassificationResponse.model_validate_json(
                 response.choices[0].message.content
             )
-            logger.info(f"Classified {filename} as {result.document_type} (confidence: {result.confidence})")
+            logger.info(f"Classified {filename} as {result.document_type}")
             return result
 
         except Exception as e:
             logger.error(f"Document classification failed: {e}", exc_info=True)
-            # Return default classification
             return DocumentClassificationResponse(
                 document_type="other",
                 confidence=0.5,
-                reasoning="Classification failed, using default"
+                reasoning="Classification failed"
             )
 
     async def generate_metadata(self, doc_text: str) -> AIMetadata:
-        """
-        Generate comprehensive metadata using structured output.
-
-        Args:
-            doc_text: Full document text
-
-        Returns:
-            AIMetadata with all structured fields
-        """
+        """Generate comprehensive metadata."""
         prompt = prompts.format("metadata_generation", doc_text=doc_text)
 
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
-                )
+                messages=[{"role": "user", "content": prompt}]
+            )
 
-            # Parse response
             result = MetadataGenerationResponse.model_validate_json(
                 response.choices[0].message.content
             )
 
             # Convert to AIMetadata model
             return AIMetadata(
-                document_type="",  # Will be set by classify_document
-                confidence=0.0,    # Will be set by classify_document
+                document_type="",
+                confidence=0.0,
                 summary=result.summary,
                 tags=result.tags,
                 topics=TopicRelevance(**result.topics),
@@ -119,23 +99,14 @@ class GeminiService:
             raise Exception(f"AI generation failed: {str(e)}")
 
     async def extract_requirements(self, doc_text: str) -> List[dict]:
-        """
-        Extract requirements using structured output.
-
-        Args:
-            doc_text: Full document text
-
-        Returns:
-            List of requirement dictionaries
-        """
+        """Extract requirements."""
         prompt = prompts.format("requirement_extraction", doc_text=doc_text)
 
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
-                )
+                messages=[{"role": "user", "content": prompt}]
+            )
 
             result = RequirementsExtractionResponse.model_validate_json(
                 response.choices[0].message.content
@@ -149,23 +120,14 @@ class GeminiService:
             return []
 
     async def detect_conflicts(self, requirements_json: str) -> List[dict]:
-        """
-        Detect conflicts in requirements using structured output.
-
-        Args:
-            requirements_json: JSON string of all requirements
-
-        Returns:
-            List of conflict dictionaries
-        """
+        """Detect conflicts in requirements."""
         prompt = prompts.format("conflict_detection", requirements_json=requirements_json)
 
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
-                )
+                messages=[{"role": "user", "content": prompt}]
+            )
 
             result = ConflictDetectionResponse.model_validate_json(
                 response.choices[0].message.content
@@ -183,16 +145,7 @@ class GeminiService:
         doc_text: str,
         stakeholders: str
     ) -> dict:
-        """
-        Analyze sentiment using structured output.
-
-        Args:
-            doc_text: Full document text
-            stakeholders_list: Comma-separated list of stakeholders
-
-        Returns:
-            Sentiment analysis dictionary
-        """
+        """Analyze sentiment."""
         prompt = prompts.format(
             "sentiment_analysis",
             doc_text=doc_text,
@@ -202,9 +155,8 @@ class GeminiService:
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
-                )
+                messages=[{"role": "user", "content": prompt}]
+            )
 
             result = SentimentAnalysisResponse.model_validate_json(
                 response.choices[0].message.content
@@ -221,37 +173,27 @@ class GeminiService:
         section_name: str,
         context: dict
     ) -> dict:
-        """
-        Generate BRD section using structured output.
-
-        Args:
-            section_name: Name of section (e.g., 'executive_summary')
-            context: Context dict with requirements, conflicts, etc.
-
-        Returns:
-            Dict with 'content' and 'citations'
-        """
+        """Generate BRD section."""
         prompt_key = f"brd_section_{section_name}"
         prompt = prompts.format(prompt_key, **context)
 
         try:
             response = await self.router.acompletion(
                 model="gemini-flash",
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"}  # Simple JSON mode
-                )
+                messages=[{"role": "user", "content": prompt}]
+            )
 
             result = BRDSectionResponse.model_validate_json(
                 response.choices[0].message.content
             )
 
-            logger.info(f"Generated {section_name} section ({len(result.content)} chars)")
+            logger.info(f"Generated {section_name} section")
             return result.model_dump()
 
         except Exception as e:
             logger.error(f"BRD section generation failed for {section_name}: {e}", exc_info=True)
             return {
-                "content": f"# {section_name.replace('_', ' ').title()}\n\nContent generation failed.",
+                "content": f"# {section_name.replace('_', ' ').title()}\n\nGeneration failed.",
                 "citations": []
             }
 
