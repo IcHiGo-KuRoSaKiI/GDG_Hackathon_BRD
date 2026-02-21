@@ -1,25 +1,46 @@
 import apiClient from './client'
 
 export interface Document {
-  id: string
+  doc_id: string
   project_id: string
   filename: string
-  file_type: string
-  file_size: number
+  original_filename: string
+  storage_path: string
+  text_path: string
   status: 'processing' | 'complete' | 'failed'
-  ai_summary?: string
-  ai_tags?: string[]
-  ai_sentiment?: {
-    overall: string
-    score: number
+  error_message?: string | null
+  uploaded_at: string
+  processed_at?: string | null
+  chomper_metadata?: {
+    format: string
+    page_count?: number | null
+    word_count?: number
+    char_count?: number
+    has_images?: boolean
+    has_tables?: boolean
   }
-  ai_topics?: Array<{
-    topic: string
-    confidence: number
-  }>
-  created_at: string
-  updated_at: string
-  processing_progress?: number
+  ai_metadata?: {
+    document_type?: string
+    confidence?: number
+    summary?: string
+    key_points?: string[]
+    tags?: string[]
+    topic_relevance?: {
+      topics: Record<string, number>
+    }
+    content_indicators?: {
+      indicators: Record<string, boolean>
+    }
+    key_entities?: {
+      stakeholders?: string[]
+      features?: string[]
+      decisions?: string[]
+      dates?: string[]
+      technologies?: string[]
+    }
+    stakeholder_sentiments?: any[]
+  }
+  chunk_count?: number
 }
 
 export async function getDocuments(projectId: string): Promise<Document[]> {

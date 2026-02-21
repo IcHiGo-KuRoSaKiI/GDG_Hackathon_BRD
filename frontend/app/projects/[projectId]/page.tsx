@@ -166,7 +166,7 @@ export default function ProjectDetailPage() {
           <div className="grid gap-4">
             {documents.map((doc, index) => (
               <motion.div
-                key={doc.id}
+                key={doc.doc_id}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
@@ -195,15 +195,15 @@ export default function ProjectDetailPage() {
                           )}
                         </div>
 
-                        {doc.ai_summary && (
+                        {doc.ai_metadata?.summary && (
                           <p className="text-sm text-muted-foreground mb-2">
-                            {doc.ai_summary}
+                            {doc.ai_metadata.summary}
                           </p>
                         )}
 
-                        {doc.ai_tags && doc.ai_tags.length > 0 && (
+                        {doc.ai_metadata?.tags && doc.ai_metadata.tags.length > 0 && (
                           <div className="flex flex-wrap gap-2 mb-2">
-                            {doc.ai_tags.map((tag, i) => (
+                            {doc.ai_metadata.tags.map((tag, i) => (
                               <span
                                 key={i}
                                 className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-md"
@@ -214,9 +214,9 @@ export default function ProjectDetailPage() {
                           </div>
                         )}
 
-                        {doc.ai_sentiment && (
+                        {doc.ai_metadata?.document_type && (
                           <p className="text-xs text-muted-foreground">
-                            Sentiment: {doc.ai_sentiment.overall} ({(doc.ai_sentiment.score * 100).toFixed(0)}%)
+                            Type: {doc.ai_metadata.document_type} ({doc.chomper_metadata?.word_count || 0} words)
                           </p>
                         )}
                       </div>
