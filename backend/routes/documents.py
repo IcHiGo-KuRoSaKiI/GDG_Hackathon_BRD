@@ -1,15 +1,16 @@
 """
 Documents API routes.
-Handles document upload and retrieval.
+Handles document upload and retrieval with authentication.
 """
-from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks, Depends
 from typing import List
 import logging
 
-from ..models import Document
+from ..models import Document, User
 from ..services.document_service import document_service
 from ..services.firestore_service import firestore_service
 from ..utils import validate_project_id
+from ..utils.auth_dependency import get_current_user
 from ..config import settings
 
 logger = logging.getLogger(__name__)
@@ -17,27 +18,28 @@ router = APIRouter(prefix="/projects/{project_id}/documents", tags=["documents"]
 
 
 @router.post("/upload", status_code=202)
-async def upload_document(
+async def upload_documents(
     project_id: str,
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...)
+    files: List[UploadFile] = File(...),
+    user: User = Depends(get_current_user)
 ):
     """
-    Upload document for processing.
+    Upload multiple documents for processing.
 
-    Processing happens in background. Client should poll GET /documents
-    to check status.
+    Processing happens in background for each file. Client should poll
+    GET /documents to check status.
 
     Args:
-        project_id: Project to associate document with
+        project_id: Project to associate documents with
         background_tasks: FastAPI background tasks
-        file: File to upload
+        files: List of files to upload (supports multiple files)
 
     Returns:
-        Status message with processing info
+        Status message with processing info for all files
 
     Raises:
-        400: Invalid project ID or file too large
+        400: Invalid project ID or files too large
         404: Project not found
     """
     # Validate project ID
@@ -47,7 +49,7 @@ async def upload_document(
             detail="Invalid project ID format"
         )
 
-    # Verify project exists
+    # Verify project exists and user owns it
     project = await firestore_service.get_project(project_id)
     if not project:
         raise HTTPException(
@@ -55,38 +57,54 @@ async def upload_document(
             detail=f"Project {project_id} not found"
         )
 
-    try:
-        # Read file data
-        file_data = await file.read()
-
-        # Check file size
-        max_size_bytes = settings.max_file_size_mb * 1024 * 1024
-        if len(file_data) > max_size_bytes:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File too large. Maximum size: {settings.max_file_size_mb}MB"
-            )
-
-        # Start background processing
-        background_tasks.add_task(
-            document_service.process_document,
-            file_data,
-            file.filename,
-            project_id
+    if project.user_id != user.user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have access to this project"
         )
 
-        logger.info(f"Started background processing for {file.filename}")
+    try:
+        max_size_bytes = settings.max_file_size_mb * 1024 * 1024
+        uploaded_files = []
+
+        # Process each file
+        for file in files:
+            # Read file data
+            file_data = await file.read()
+
+            # Check file size
+            if len(file_data) > max_size_bytes:
+                logger.warning(f"File {file.filename} too large, skipping")
+                continue
+
+            # Start background processing for this file
+            background_tasks.add_task(
+                document_service.process_document,
+                file_data,
+                file.filename,
+                project_id
+            )
+
+            uploaded_files.append(file.filename)
+            logger.info(f"Started background processing for {file.filename}")
+
+        if not uploaded_files:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid files to process (all files too large)"
+            )
 
         return {
             "status": "processing",
-            "message": f"Document {file.filename} is being processed",
+            "message": f"Processing {len(uploaded_files)} document(s)",
+            "files": uploaded_files,
             "note": "Poll GET /projects/{project_id}/documents to check status"
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to upload document: {e}", exc_info=True)
+        logger.error(f"Failed to upload documents: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Upload failed: {str(e)}"
@@ -94,18 +112,26 @@ async def upload_document(
 
 
 @router.get("", response_model=List[Document])
-async def list_documents(project_id: str):
+async def list_documents(
+    project_id: str,
+    user: User = Depends(get_current_user)
+):
     """
     List all documents in a project.
 
+    Requires: Authorization header with valid Firebase ID token
+    User must own the project.
+
     Args:
         project_id: Project ID to query
+        user: Current authenticated user
 
     Returns:
         List of documents with processing status
 
     Raises:
         400: Invalid project ID
+        403: User doesn't own this project
     """
     # Validate project ID
     if not validate_project_id(project_id):
@@ -115,11 +141,24 @@ async def list_documents(project_id: str):
         )
 
     try:
+        # Verify user owns project
+        project = await firestore_service.get_project(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        if project.user_id != user.user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have access to this project"
+            )
+
         # Fetch documents from Firestore
         documents = await firestore_service.list_documents(project_id)
 
         return documents
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to list documents: {e}", exc_info=True)
         raise HTTPException(
@@ -129,7 +168,11 @@ async def list_documents(project_id: str):
 
 
 @router.get("/{doc_id}", response_model=Document)
-async def get_document(project_id: str, doc_id: str):
+async def get_document(
+    project_id: str,
+    doc_id: str,
+    user: User = Depends(get_current_user)
+):
     """
     Get specific document details.
 

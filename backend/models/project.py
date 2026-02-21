@@ -16,6 +16,7 @@ class ProjectCreate(BaseModel):
 class Project(BaseModel):
     """Complete project model with metadata."""
     project_id: str
+    user_id: str  # Owner of this project
     name: str
     description: Optional[str] = None
     created_at: datetime

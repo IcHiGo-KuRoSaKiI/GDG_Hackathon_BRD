@@ -15,6 +15,7 @@ from .id_generator import (
     generate_brd_id,
     generate_chunk_id
 )
+from .auth_dependency import get_current_user, get_optional_user
 
 __all__ = [
     # Prompt management
@@ -29,5 +30,8 @@ __all__ = [
     "generate_project_id",
     "generate_doc_id",
     "generate_brd_id",
-    "generate_chunk_id"
+    "generate_chunk_id",
+    # Auth dependencies
+    "get_current_user",
+    "get_optional_user"
 ]

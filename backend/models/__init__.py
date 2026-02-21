@@ -23,6 +23,13 @@ from .brd import (
     Sentiment,
     BRDGenerateRequest
 )
+from .user import (
+    User,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    AuthToken
+)
 
 __all__ = [
     # Project models
@@ -46,5 +53,11 @@ __all__ = [
     "Citation",
     "Conflict",
     "Sentiment",
-    "BRDGenerateRequest"
+    "BRDGenerateRequest",
+    # User models
+    "User",
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "AuthToken"
 ]
