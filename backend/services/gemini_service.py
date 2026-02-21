@@ -100,8 +100,8 @@ class GeminiService:
                 summary=result.summary,
                 key_points=[],  # Not in current response
                 tags=result.tags,
-                topic_relevance=TopicRelevance(**result.topics),
-                content_indicators=ContentIndicators(**result.contains),
+                topic_relevance=TopicRelevance(topics=result.topics),
+                content_indicators=ContentIndicators(indicators=result.contains),
                 key_entities=KeyEntities(**result.key_entities),
                 stakeholder_sentiments=stakeholder_sentiments
             )

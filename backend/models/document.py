@@ -29,29 +29,31 @@ class DocumentType(str, Enum):
 
 
 class TopicRelevance(BaseModel):
-    """Relevance scores for 10 key topics (0.0-1.0)."""
-    authentication: float = Field(0.0, ge=0.0, le=1.0)
-    authorization: float = Field(0.0, ge=0.0, le=1.0)
-    data_storage: float = Field(0.0, ge=0.0, le=1.0)
-    api_integration: float = Field(0.0, ge=0.0, le=1.0)
-    ui_ux: float = Field(0.0, ge=0.0, le=1.0)
-    performance: float = Field(0.0, ge=0.0, le=1.0)
-    security: float = Field(0.0, ge=0.0, le=1.0)
-    scalability: float = Field(0.0, ge=0.0, le=1.0)
-    testing: float = Field(0.0, ge=0.0, le=1.0)
-    deployment: float = Field(0.0, ge=0.0, le=1.0)
+    """Dynamic topic relevance scores (0.0-1.0).
+
+    Topics are identified by AI based on document content.
+    Works for any domain: tech, marketing, construction, healthcare, etc.
+    """
+    topics: Dict[str, float] = Field(
+        default_factory=dict,
+        description="Topic name -> relevance score (0.0-1.0)"
+    )
+
+    class Config:
+        # Allow validation of float values in dict
+        extra = "forbid"
 
 
 class ContentIndicators(BaseModel):
-    """Boolean flags for content types present in document."""
-    has_requirements: bool = False
-    has_technical_details: bool = False
-    has_decisions: bool = False
-    has_timeline: bool = False
-    has_budget: bool = False
-    has_stakeholder_feedback: bool = False
-    has_risks: bool = False
-    has_success_metrics: bool = False
+    """Dynamic content indicators identified by AI.
+
+    Identifies what types of content are present in the document.
+    Adapts to any domain: requirements, budget, timeline, risks, etc.
+    """
+    indicators: Dict[str, bool] = Field(
+        default_factory=dict,
+        description="Content type -> presence indicator (true/false)"
+    )
 
 
 class KeyEntities(BaseModel):
