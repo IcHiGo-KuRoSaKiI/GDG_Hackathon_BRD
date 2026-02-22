@@ -36,40 +36,113 @@ function PriorityBadge({ level }: { level: string }) {
   )
 }
 
+/** Check if a string looks like a pipe-delimited table row */
+function isPipeRow(s: string): boolean {
+  const t = s.trim()
+  return t.startsWith('|') && t.endsWith('|') && t.split('|').length >= 3
+}
+
+/** Check if a string is a table separator row (| --- | --- |) */
+function isSeparatorRow(s: string): boolean {
+  const t = s.trim()
+  if (!t.startsWith('|')) return false
+  const cells = t.split('|').filter(Boolean)
+  return cells.every((c) => /^\s*:?-{2,}:?\s*$/.test(c))
+}
+
 /**
- * Fix common markdown table issues from AI-generated content:
- * 1. Remove blank lines between table header and separator
- * 2. Remove blank lines between table rows
+ * Parse pipe-delimited text into table rows.
+ * Returns null if text doesn't look like a table.
+ */
+function parsePipeTable(text: string): { headers: string[]; rows: string[][] } | null {
+  // Split by newline, handle both \n and literal \n in strings
+  const lines = text
+    .replace(/\\n/g, '\n')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+
+  if (lines.length < 2) return null
+
+  // Find pipe rows
+  const pipeLines = lines.filter((l) => l.includes('|'))
+  if (pipeLines.length < 2) return null
+
+  // Parse each pipe line into cells
+  const parseLine = (line: string): string[] => {
+    // Remove leading/trailing pipes, split by |
+    let trimmed = line.trim()
+    if (trimmed.startsWith('|')) trimmed = trimmed.slice(1)
+    if (trimmed.endsWith('|')) trimmed = trimmed.slice(0, -1)
+    return trimmed.split('|').map((c) => c.trim())
+  }
+
+  // First pipe line is header
+  const allPipeLines = lines.filter((l) => l.includes('|'))
+
+  // Find separator (row with only dashes/colons)
+  const sepIdx = allPipeLines.findIndex((l) => isSeparatorRow(l))
+
+  let headers: string[]
+  let dataLines: string[]
+
+  if (sepIdx >= 0) {
+    // Use line before separator as header, lines after as data
+    const headerIdx = Math.max(0, sepIdx - 1)
+    headers = parseLine(allPipeLines[headerIdx] || '')
+    dataLines = allPipeLines.slice(sepIdx + 1)
+  } else {
+    // No separator found — first line is header, rest is data
+    headers = parseLine(allPipeLines[0])
+    dataLines = allPipeLines.slice(1)
+  }
+
+  if (headers.length === 0) return null
+
+  const rows = dataLines
+    .filter((l) => !isSeparatorRow(l))
+    .map((l) => parseLine(l))
+
+  if (rows.length === 0) return null
+
+  return { headers, rows }
+}
+
+/**
+ * Aggressive markdown preprocessor:
+ * 1. Fix literal \\n in strings → actual newlines
+ * 2. Remove blank lines inside table blocks
  * 3. Trim leading whitespace from table rows
- * 4. Ensure blank line before table start
+ * 4. Ensure blank line before/after table
  */
 function preprocessMarkdown(content: string): string {
-  const lines = content.split('\n')
+  // Fix literal \\n that may come from JSON double-escaping
+  let fixed = content.replace(/\\n/g, '\n')
+
+  const lines = fixed.split('\n')
   const result: string[] = []
   let inTable = false
 
   for (let i = 0; i < lines.length; i++) {
     const trimmed = lines[i].trim()
-    const isTableRow = /^\|/.test(trimmed)
+    const looksLikeTable = trimmed.includes('|') && (trimmed.startsWith('|') || /\|.*\|/.test(trimmed))
 
-    if (isTableRow) {
+    if (looksLikeTable) {
       if (!inTable) {
-        // Ensure blank line before table starts (if prev line isn't blank/heading)
+        // Ensure blank line before table
         if (result.length > 0 && result[result.length - 1].trim() !== '') {
           result.push('')
         }
         inTable = true
       }
-      // Push trimmed table row (remove leading whitespace that breaks parsing)
       result.push(trimmed)
     } else if (inTable) {
       if (trimmed === '') {
-        // Skip blank lines inside tables — they break remark-gfm parsing
+        // Skip blank lines inside tables
         continue
       } else {
-        // Non-table, non-blank line → table ended
         inTable = false
-        result.push('') // blank line after table
+        result.push('')
         result.push(lines[i])
       }
     } else {
@@ -107,7 +180,6 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
 
       const parts: React.ReactNode[] = []
       let lastIndex = 0
-      // Match citation [N] and priority patterns
       const regex = /\[(\d+)\]|(?:Priority:\s*)(High|Medium|Low|Critical|Optional)/gi
       let match
 
@@ -117,7 +189,6 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
         }
 
         if (match[1]) {
-          // Citation marker [N]
           const citationId = match[1]
           const citation = section.citations?.find((c) => c.id === citationId)
           if (citation) {
@@ -132,7 +203,6 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
             parts.push(`[${citationId}]`)
           }
         } else if (match[2]) {
-          // Priority pattern — "Priority: High"
           parts.push('Priority: ')
           parts.push(<PriorityBadge key={`p-${match.index}`} level={match[2]} />)
         }
@@ -148,16 +218,95 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
     })
   }
 
+  /** Render a cell's text content with priority badge support */
+  const renderCellContent = (text: string, keyPrefix: string) => {
+    // Handle <br> tags
+    const parts = text.split(/<br\s*\/?>/gi)
+    return parts.map((part, i) => {
+      const priorityMatch = part.match(/Priority:\s*(High|Medium|Low|Critical|Optional)/i)
+      if (priorityMatch) {
+        const before = part.slice(0, priorityMatch.index)
+        const after = part.slice((priorityMatch.index || 0) + priorityMatch[0].length)
+        return (
+          <React.Fragment key={`${keyPrefix}-${i}`}>
+            {i > 0 && <br />}
+            {before}Priority: <PriorityBadge level={priorityMatch[1]} />{after}
+          </React.Fragment>
+        )
+      }
+      return (
+        <React.Fragment key={`${keyPrefix}-${i}`}>
+          {i > 0 && <br />}
+          {part}
+        </React.Fragment>
+      )
+    })
+  }
+
+  /**
+   * Fallback: render pipe-delimited text as an HTML table.
+   * This catches tables that remark-gfm failed to parse.
+   */
+  const FallbackTable = ({ text }: { text: string }) => {
+    const table = parsePipeTable(text)
+    if (!table) return null
+
+    return (
+      <div className="overflow-x-auto my-6 border border-border/60">
+        <table className="w-full text-sm brd-table">
+          <thead className="bg-muted/70 border-b-2 border-border">
+            <tr>
+              {table.headers.map((h, i) => (
+                <th
+                  key={i}
+                  className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, ri) => (
+              <tr
+                key={ri}
+                className="border-b border-border/40 hover:bg-muted/30 transition-colors"
+              >
+                {row.map((cell, ci) => (
+                  <td key={ci} className="px-4 py-3 align-top break-words max-w-[400px]">
+                    {renderCellContent(cell, `r${ri}c${ci}`)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
   // Custom markdown components with enhanced styling
   const mdComponents: Record<string, React.FC<any>> = {
-    p: ({ children }: { children?: React.ReactNode }) => (
-      <p className="mb-4 last:mb-0 leading-relaxed">{injectEnhancements(children)}</p>
-    ),
+    p: ({ children }: { children?: React.ReactNode }) => {
+      // Extract text content to check if this is a failed table parse
+      const textContent = React.Children.toArray(children)
+        .map((c) => (typeof c === 'string' ? c : ''))
+        .join('')
+
+      // If paragraph contains pipe-delimited text, render as fallback table
+      if (textContent.includes('|') && (textContent.match(/\|/g) || []).length >= 4) {
+        const table = parsePipeTable(textContent)
+        if (table) {
+          return <FallbackTable text={textContent} />
+        }
+      }
+
+      return <p className="mb-4 last:mb-0 leading-relaxed">{injectEnhancements(children)}</p>
+    },
     li: ({ children }: { children?: React.ReactNode }) => (
       <li className="leading-relaxed">{injectEnhancements(children)}</li>
     ),
     strong: ({ children }: { children?: React.ReactNode }) => {
-      // Detect requirement IDs like "FR-01", "NFR-02", "FR-EVAL-01"
       const text = React.Children.toArray(children).join('')
       const isReqId = /^(FR|NFR|BR|SR|TR)-[\w.-]+$/i.test(text.trim())
       const isLabel = /^(Requirement|Acceptance Criteria|Description|Rationale|Impact|Risk|Mitigation):?$/i.test(text.trim())
@@ -187,7 +336,7 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
       }
       return <strong>{children}</strong>
     },
-    // Tables — clean, readable design
+    // Tables — clean, readable design (for when remark-gfm DOES parse correctly)
     table: ({ children }: { children?: React.ReactNode }) => (
       <div className="overflow-x-auto my-6 border border-border/60">
         <table className="w-full text-sm brd-table">{children}</table>
@@ -197,7 +346,7 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
       <thead className="bg-muted/70 border-b-2 border-border">{children}</thead>
     ),
     th: ({ children }: { children?: React.ReactNode }) => (
-      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+      <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
         {injectEnhancements(children)}
       </th>
     ),
@@ -211,7 +360,6 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
         {injectEnhancements(children)}
       </td>
     ),
-    // Headings inside content — visual hierarchy
     h1: ({ children }: { children?: React.ReactNode }) => (
       <h1 className="text-xl font-bold font-mono mt-8 mb-4 pb-2 border-b border-border/50">{children}</h1>
     ),
@@ -224,13 +372,11 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
     h4: ({ children }: { children?: React.ReactNode }) => (
       <h4 className="text-sm font-bold mt-4 mb-2 uppercase tracking-wider">{children}</h4>
     ),
-    // Blockquotes
     blockquote: ({ children }: { children?: React.ReactNode }) => (
       <blockquote className="border-l-2 border-primary/40 pl-4 py-1 my-4 text-muted-foreground italic">
         {children}
       </blockquote>
     ),
-    // Horizontal rules as section dividers
     hr: () => <hr className="my-6 border-border/50" />,
   }
 
