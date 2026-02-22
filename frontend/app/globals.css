@@ -205,3 +205,34 @@
   --tw-prose-invert-headings: hsl(var(--foreground));
   --tw-prose-invert-links: hsl(var(--primary));
 }
+
+/* ── BRD content enhancements ── */
+.brd-content .brd-table {
+  border-collapse: collapse;
+}
+.brd-content .brd-table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.3);
+}
+.dark .brd-content .brd-table tbody tr:nth-child(even) {
+  background: hsl(var(--muted) / 0.2);
+}
+
+/* Disable heavy default prose table styles inside BRD */
+.brd-content table {
+  margin: 0 !important;
+}
+.brd-content thead th {
+  border-bottom: none !important;
+}
+.brd-content tbody td {
+  border-bottom: none !important;
+}
+
+/* Remove default prose margins for nested BRD lists */
+.brd-content ul, .brd-content ol {
+  padding-left: 1.25rem;
+}
+.brd-content li {
+  margin-top: 0.15rem;
+  margin-bottom: 0.15rem;
+}
