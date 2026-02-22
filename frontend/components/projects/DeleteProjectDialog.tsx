@@ -123,7 +123,7 @@ export function DeleteProjectDialog({
                       This will permanently delete:
                     </p>
                     <ul className="text-xs text-amber-600/80 dark:text-amber-500/80 space-y-1 list-disc list-inside">
-                      <li>The project "{project?.name}"</li>
+                      <li>The project &ldquo;{project?.name}&rdquo;</li>
                       <li>{preview.documents_to_delete} document{preview.documents_to_delete !== 1 ? 's' : ''} and their metadata</li>
                       <li>{preview.brds_to_delete} generated BRD{preview.brds_to_delete !== 1 ? 's' : ''}</li>
                       <li>{preview.chunks_to_delete} text chunks</li>

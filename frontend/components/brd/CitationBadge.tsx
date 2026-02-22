@@ -38,7 +38,7 @@ export function CitationBadge({ citation, onViewDocument }: CitationBadgeProps) 
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Excerpt</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              "{citation.text}"
+              &ldquo;{citation.text}&rdquo;
             </p>
           </div>
 
