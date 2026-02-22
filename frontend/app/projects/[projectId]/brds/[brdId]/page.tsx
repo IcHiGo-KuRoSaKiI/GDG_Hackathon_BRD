@@ -17,7 +17,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { getProject } from '@/lib/api/projects'
-import { formatRelativeTime } from '@/lib/utils/formatters'
+import { formatRelativeTime, getApiError } from '@/lib/utils/formatters'
 import { requirementToSectionKey } from '@/lib/utils/sectionMapping'
 
 const SECTION_TITLES: Record<string, string> = {
@@ -108,7 +108,7 @@ export default function BRDViewerPage() {
         }
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load BRD')
+      setError(getApiError(err, 'Failed to load BRD'))
     } finally {
       setLoading(false)
     }
@@ -406,14 +406,14 @@ export default function BRDViewerPage() {
       <div className="h-screen flex flex-col">
         {/* Header skeleton */}
         <div className="px-4 md:px-8 pt-4 md:pt-8 pb-4 shrink-0">
-          <Skeleton className="h-9 w-36 mb-4 rounded-md" />
+          <Skeleton className="h-9 w-36 mb-4" />
           <Skeleton className="h-8 w-80 mb-2" />
           <Skeleton className="h-4 w-48" />
         </div>
         {/* Section tabs skeleton */}
         <div className="px-4 md:px-8 py-2 border-b flex gap-2 overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-8 rounded-full" style={{ width: `${80 + i * 12}px` }} />
+            <Skeleton key={i} className="h-8" style={{ width: `${80 + i * 12}px` }} />
           ))}
         </div>
         {/* Content skeleton — prose lines */}
@@ -439,7 +439,7 @@ export default function BRDViewerPage() {
   if (error || !brd) {
     return (
       <div className="p-8">
-        <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+        <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20">
           {error || 'BRD not found'}
         </div>
       </div>
@@ -487,7 +487,7 @@ export default function BRDViewerPage() {
                   className="flex items-center gap-2 cursor-pointer"
                   onClick={startEditingTitle}
                 >
-                  <h1 className="text-xl md:text-3xl font-bold">{titleValue}</h1>
+                  <h1 className="text-xl md:text-3xl font-bold font-mono">{titleValue}</h1>
                   <Pencil className="h-4 w-4 text-muted-foreground shrink-0
                     opacity-50 md:opacity-0 md:group-hover:opacity-100
                     transition-opacity" />
@@ -500,7 +500,7 @@ export default function BRDViewerPage() {
                 {availableSections.length} sections
               </span>
               {brd.generation_metadata?.token_usage && (
-                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-muted/50 rounded-full text-xs font-medium">
+                <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-muted/50 text-xs font-medium">
                   <span className="flex items-center gap-1" title="Total tokens used">
                     <Zap className="h-3 w-3" />
                     {(brd.generation_metadata.token_usage.total_tokens / 1000).toFixed(0)}k tokens
@@ -555,7 +555,7 @@ export default function BRDViewerPage() {
           )}
 
           {/* Section Tabs — sticky so they stay visible while scrolling */}
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 md:px-8 py-2 border-b">
+          <div className="sticky top-0 z-10 bg-background px-4 md:px-8 py-2 border-b">
             <BRDSectionTabs
               activeSection={activeSection}
               onSectionChange={setActiveSection}
@@ -567,14 +567,14 @@ export default function BRDViewerPage() {
           <div
             className={`px-4 md:px-8 py-6 relative transition-colors duration-700 ${
               updatedSection === activeSection
-                ? 'bg-emerald-500/5'
+                ? 'bg-primary/5'
                 : ''
             }`}
             ref={setContentEl}
           >
             {/* Update success banner */}
             {updatedSection === activeSection && (
-              <div className="mb-4 flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-2.5 animate-slide-in">
+              <div className="mb-4 flex items-center gap-2 text-sm text-primary bg-primary/10 border border-primary/20 px-4 py-2.5 animate-fade-in">
                 <CheckCircle2 className="h-4 w-4 shrink-0" />
                 <span className="font-medium">
                   {SECTION_TITLES[activeSection] || activeSection} updated successfully

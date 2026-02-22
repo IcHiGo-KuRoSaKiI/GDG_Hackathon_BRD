@@ -24,6 +24,7 @@ import { EditableProjectHeader } from '@/components/projects/EditableProjectHead
 import { Skeleton } from '@/components/ui/skeleton'
 import { Breadcrumbs } from '@/components/ui/breadcrumbs'
 import { calculateFileHash, extractHashFromPath } from '@/lib/utils/fileHash'
+import { getApiError } from '@/lib/utils/formatters'
 
 export default function ProjectDetailPage() {
   const params = useParams()
@@ -68,7 +69,7 @@ export default function ProjectDetailPage() {
       const data = await getProject(projectId)
       setProject(data)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load project')
+      setError(getApiError(err, 'Failed to load project'))
     }
   }
 
@@ -151,8 +152,7 @@ export default function ProjectDetailPage() {
         })
       }
     } catch (err: any) {
-      const detail = err.response?.data?.detail
-      const message = typeof detail === 'string' ? detail : 'Failed to upload documents'
+      const message = getApiError(err, 'Failed to upload documents')
       setError(message)
       toast({
         title: 'Upload failed',
@@ -213,7 +213,7 @@ export default function ProjectDetailPage() {
       setIsGenerating(false)
       toast({
         title: 'Failed to start BRD generation',
-        description: err.response?.data?.detail || 'An error occurred',
+        description: getApiError(err, 'An error occurred'),
         variant: 'destructive',
       })
     }
@@ -233,13 +233,13 @@ export default function ProjectDetailPage() {
         {/* Cards skeleton */}
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 p-5 rounded-xl border border-border">
-              <Skeleton className="h-10 w-10 rounded-lg" />
+            <div key={i} className="flex items-center gap-4 p-5 border border-border">
+              <Skeleton className="h-10 w-10" />
               <div className="flex-1 space-y-2">
                 <Skeleton className="h-4 w-48" />
                 <Skeleton className="h-3 w-32" />
               </div>
-              <Skeleton className="h-6 w-20 rounded-full" />
+              <Skeleton className="h-6 w-20" />
             </div>
           ))}
         </div>
@@ -250,7 +250,7 @@ export default function ProjectDetailPage() {
   if (error && !project) {
     return (
       <div className="p-8">
-        <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+        <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20">
           {error}
         </div>
       </div>
@@ -281,7 +281,7 @@ export default function ProjectDetailPage() {
         {/* LLM Usage Summary */}
         {usage && (
           <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/50 rounded-lg">
+            <div className="flex items-center gap-4 px-4 py-2.5 bg-muted/50">
               <span className="flex items-center gap-1.5 text-muted-foreground" title="Total tokens across all LLM calls">
                 <Zap className="h-3.5 w-3.5" />
                 <span className="font-medium text-foreground">
@@ -306,7 +306,7 @@ export default function ProjectDetailPage() {
             {usage.by_service && Object.keys(usage.by_service).length > 0 && (
               <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground">
                 {Object.entries(usage.by_service).map(([service, data]) => (
-                  <span key={service} className="px-2 py-1 bg-muted/30 rounded" title={`${data.calls} calls, $${data.cost_usd.toFixed(4)}`}>
+                  <span key={service} className="px-2 py-1 bg-muted/30" title={`${data.calls} calls, $${data.cost_usd.toFixed(4)}`}>
                     {service.replace(/_/g, ' ')}: ${data.cost_usd.toFixed(4)}
                   </span>
                 ))}
@@ -337,7 +337,7 @@ export default function ProjectDetailPage() {
             <CardContent>
               <label
                 htmlFor="file-upload"
-                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border cursor-pointer hover:bg-accent transition-colors"
               >
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <Upload className="h-8 w-8 mb-2 text-muted-foreground" />
@@ -363,7 +363,7 @@ export default function ProjectDetailPage() {
 
           {/* Documents List */}
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold font-mono">
               Documents ({documents.length})
             </h2>
 
@@ -394,17 +394,17 @@ export default function ProjectDetailPage() {
                               <FileText className="h-5 w-5 text-primary" />
                               <h3 className="font-medium">{doc.filename}</h3>
                               {doc.status === 'processing' && (
-                                <span className="text-xs px-2 py-1 bg-amber-500/10 text-amber-500 rounded-full">
+                                <span className="text-xs px-2 py-1 bg-amber-500/10 text-amber-500">
                                   Processing...
                                 </span>
                               )}
                               {doc.status === 'complete' && (
-                                <span className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-500 rounded-full">
+                                <span className="text-xs px-2 py-1 bg-emerald-500/10 text-emerald-500">
                                   ✓ Complete
                                 </span>
                               )}
                               {doc.status === 'failed' && (
-                                <span className="text-xs px-2 py-1 bg-destructive/10 text-destructive rounded-full">
+                                <span className="text-xs px-2 py-1 bg-destructive/10 text-destructive">
                                   Failed
                                 </span>
                               )}
@@ -421,7 +421,7 @@ export default function ProjectDetailPage() {
                                 {doc.ai_metadata.tags.map((tag, i) => (
                                   <span
                                     key={i}
-                                    className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-md"
+                                    className="text-xs px-2 py-1 bg-primary/10 text-primary"
                                   >
                                     {tag}
                                   </span>
@@ -453,13 +453,13 @@ export default function ProjectDetailPage() {
           </div>
 
           {hasFailedDocs && (
-            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20">
               Some documents failed to process. Please try uploading them again.
             </div>
           )}
 
           {documents.length > 0 && !allDocsProcessed && (
-            <div className="p-4 text-sm text-amber-600 dark:text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-md">
+            <div className="p-4 text-sm text-amber-600 dark:text-amber-500 bg-amber-500/10 border border-amber-500/20">
               Documents are still processing. BRD generation will be available once all documents are complete.
             </div>
           )}
@@ -468,7 +468,7 @@ export default function ProjectDetailPage() {
         {/* BRDs Tab */}
         <TabsContent value="brds" className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">
+            <h2 className="text-xl font-semibold font-mono">
               Generated BRDs ({brds.length})
             </h2>
             <Button
