@@ -105,6 +105,25 @@
   animation: terminal-blink 1s step-end infinite;
 }
 
+/* Glassmorphism utilities */
+.glass {
+  @apply backdrop-blur-xl;
+  background: hsla(var(--card), 0.6);
+  border-color: hsla(var(--foreground), 0.08);
+}
+
+.glass-heavy {
+  @apply backdrop-blur-2xl;
+  background: hsla(var(--card), 0.75);
+  border-color: hsla(var(--foreground), 0.1);
+}
+
+.glass-subtle {
+  @apply backdrop-blur-md;
+  background: hsla(var(--card), 0.4);
+  border-color: hsla(var(--foreground), 0.06);
+}
+
 /* Monospace utility classes */
 .font-mono-heading {
   font-family: var(--font-mono), ui-monospace, monospace;

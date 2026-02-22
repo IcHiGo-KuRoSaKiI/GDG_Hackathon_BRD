@@ -555,7 +555,7 @@ export default function BRDViewerPage() {
           )}
 
           {/* Section Tabs — sticky so they stay visible while scrolling */}
-          <div className="sticky top-0 z-10 bg-background px-4 md:px-8 py-2 border-b">
+          <div className="sticky top-0 z-10 bg-background/70 backdrop-blur-xl px-4 md:px-8 py-2 border-b border-border/50">
             <BRDSectionTabs
               activeSection={activeSection}
               onSectionChange={setActiveSection}

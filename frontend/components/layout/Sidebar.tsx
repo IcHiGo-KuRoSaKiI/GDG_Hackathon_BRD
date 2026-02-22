@@ -128,7 +128,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   return (
     <>
       {/* Desktop top nav bar */}
-      <header className="hidden md:flex items-center h-14 px-6 border-b border-border bg-background shrink-0">
+      <header className="hidden md:flex items-center h-14 px-6 border-b border-border/50 bg-background/60 backdrop-blur-xl shrink-0">
         {/* Logo */}
         <Link href="/dashboard" className="flex items-center gap-2 mr-8">
           <FileText className="h-5 w-5 text-primary" />
@@ -171,7 +171,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
       </header>
 
       {/* Mobile: hamburger + sheet */}
-      <header className="md:hidden flex items-center gap-3 h-12 px-4 border-b border-border bg-background shrink-0">
+      <header className="md:hidden flex items-center gap-3 h-12 px-4 border-b border-border/50 bg-background/60 backdrop-blur-xl shrink-0">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onMobileOpenChange?.(true)}>
           <Menu className="h-5 w-5" />
         </Button>
