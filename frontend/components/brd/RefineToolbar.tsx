@@ -18,7 +18,7 @@ export function RefineToolbar({ position, mode, onRefine }: RefineToolbarProps) 
       <Button
         size="sm"
         variant="secondary"
-        className="shadow-lg border gap-1.5 text-xs font-medium"
+        className="border gap-1.5 text-xs font-medium"
         onClick={(e) => {
           e.stopPropagation()
           onRefine()

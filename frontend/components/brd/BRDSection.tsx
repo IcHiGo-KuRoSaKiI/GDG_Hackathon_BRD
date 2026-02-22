@@ -113,7 +113,7 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
         </Button>
       </div>
 
-      <div className="border rounded-lg p-6 bg-card" data-section-key={sectionKey}>
+      <div className="border p-6 bg-card" data-section-key={sectionKey}>
         <div className="prose prose-sm dark:prose-invert max-w-none">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
             {section.content}
@@ -128,7 +128,7 @@ export function BRDSection({ section, title, sectionKey, onViewDocument }: BRDSe
             {section.citations.map((citation) => (
               <div
                 key={citation.id}
-                className="text-sm p-3 bg-muted/50 rounded-md"
+                className="text-sm p-3 bg-muted/50"
               >
                 <div className="flex items-start gap-2">
                   <span className="font-medium text-primary">[{citation.id}]</span>

@@ -14,6 +14,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Plus } from 'lucide-react'
 import { createProject } from '@/lib/api/projects'
+import { getApiError } from '@/lib/utils/formatters'
 
 interface CreateProjectModalProps {
   onSuccess: () => void
@@ -39,7 +40,7 @@ export function CreateProjectModal({ onSuccess, variant = 'header' }: CreateProj
       setDescription('')
       onSuccess()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to create project')
+      setError(getApiError(err, 'Failed to create project'))
     } finally {
       setLoading(false)
     }
@@ -93,7 +94,7 @@ export function CreateProjectModal({ onSuccess, variant = 'header' }: CreateProj
               />
             </div>
             {error && (
-              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+              <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20">
                 {error}
               </div>
             )}

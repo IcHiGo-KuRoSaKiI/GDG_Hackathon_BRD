@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { BRD, deleteBRD } from '@/lib/api/brds'
+import { getApiError } from '@/lib/utils/formatters'
 
 interface DeleteBRDDialogProps {
   brd: BRD | null
@@ -41,7 +42,7 @@ export function DeleteBRDDialog({
       onDeleted()
       handleClose()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to delete BRD')
+      setError(getApiError(err, 'Failed to delete BRD'))
     } finally {
       setDeleting(false)
     }
@@ -75,13 +76,13 @@ export function DeleteBRDDialog({
 
         <div className="py-4">
           {error && (
-            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md mb-4">
+            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 mb-4">
               {error}
             </div>
           )}
 
           <div className="space-y-3">
-            <div className="p-3 bg-muted rounded-md">
+            <div className="p-3 bg-muted">
               <p className="text-sm font-medium">
                 BRD #{brd?.id?.slice(0, 8) || 'Unknown'}
               </p>
@@ -97,7 +98,7 @@ export function DeleteBRDDialog({
               )}
             </div>
 
-            <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-md">
+            <div className="p-4 bg-amber-500/10 border border-amber-500/20">
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <div>

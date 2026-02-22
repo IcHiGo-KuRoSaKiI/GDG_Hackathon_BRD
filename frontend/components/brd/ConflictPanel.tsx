@@ -135,7 +135,7 @@ export function ConflictPanel({
             return (
               <div
                 key={conflict.id}
-                className={`border rounded-lg p-4 bg-card space-y-3 transition-opacity ${
+                className={`border p-4 bg-card space-y-3 transition-opacity ${
                   isResolved ? 'opacity-60' : ''
                 }`}
               >

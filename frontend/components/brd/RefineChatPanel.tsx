@@ -165,7 +165,7 @@ export function RefineChatPanel({
 
       {/* Original text (refine mode only) */}
       {hasActiveRefinement && originalText && (
-        <div className="p-3 mx-4 mt-3 rounded-md bg-muted/50 border text-xs shrink-0">
+        <div className="p-3 mx-4 mt-3 bg-muted/50 border text-xs shrink-0">
           <p className="text-muted-foreground font-medium mb-1">Selected text:</p>
           <p className="line-clamp-4">{originalText}</p>
         </div>
@@ -190,7 +190,7 @@ export function RefineChatPanel({
           if (msg.role === 'system') {
             return (
               <div key={i} className="flex justify-center">
-                <span className="text-[11px] text-muted-foreground bg-muted/50 px-3 py-1 rounded-full">
+                <span className="text-[11px] text-muted-foreground bg-muted/50 px-3 py-1">
                   {msg.content}
                 </span>
               </div>
@@ -203,7 +203,7 @@ export function RefineChatPanel({
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`rounded-lg p-3 text-sm ${
+                className={`p-3 text-sm ${
                   msg.role === 'user'
                     ? 'max-w-[85%] bg-primary text-primary-foreground'
                     : 'w-full bg-muted border'
@@ -235,7 +235,7 @@ export function RefineChatPanel({
         {/* Loading indicator */}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-muted border rounded-lg p-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="bg-muted border p-3 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               {hasActiveRefinement ? 'Refining...' : 'Searching documents...'}
             </div>
@@ -311,7 +311,7 @@ export function RefineChatPanel({
                 : 'Ask about this BRD...'
             }
             rows={2}
-            className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="flex-1 resize-none border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             disabled={isLoading}
           />
           <Button

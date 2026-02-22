@@ -14,9 +14,10 @@ import { Button } from '@/components/ui/button'
 import {
   Document,
   previewDocumentDeletion,
-  deleteDocument,
+  confirmDocumentDeletion,
   DeletePreviewResponse,
 } from '@/lib/api/documents'
+import { getApiError } from '@/lib/utils/formatters'
 
 interface DeleteDocumentDialogProps {
   document: Document | null
@@ -53,23 +54,23 @@ export function DeleteDocumentDialog({
       const data = await previewDocumentDeletion(projectId, document.doc_id)
       setPreview(data)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load deletion preview')
+      setError(getApiError(err, 'Failed to load deletion preview'))
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async () => {
-    if (!document) return
+    if (!document || !preview) return
 
     setDeleting(true)
     setError('')
     try {
-      await deleteDocument(projectId, document.doc_id)
+      await confirmDocumentDeletion(projectId, document.doc_id, preview.deletion_id)
       onDeleted()
       onClose()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to delete document')
+      setError(getApiError(err, 'Failed to delete document'))
     } finally {
       setDeleting(false)
     }
@@ -104,7 +105,7 @@ export function DeleteDocumentDialog({
           )}
 
           {error && (
-            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md mb-4">
+            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 mb-4">
               {error}
             </div>
           )}
@@ -112,7 +113,7 @@ export function DeleteDocumentDialog({
           {!loading && preview && (
             <>
               <div className="space-y-3">
-                <div className="p-3 bg-muted rounded-md">
+                <div className="p-3 bg-muted">
                   <p className="text-sm font-medium">{document?.filename}</p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {document?.chomper_metadata?.word_count || 0} words •{' '}
@@ -120,17 +121,17 @@ export function DeleteDocumentDialog({
                   </p>
                 </div>
 
-                {preview.brd_ids_to_delete.length > 0 && (
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                {preview.brds_to_delete > 0 && (
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium text-amber-600 dark:text-amber-500">
-                          Warning: This will affect {preview.brd_ids_to_delete.length} BRD
-                          {preview.brd_ids_to_delete.length > 1 ? 's' : ''}
+                          Warning: This will also delete {preview.brds_to_delete} BRD
+                          {preview.brds_to_delete > 1 ? 's' : ''}
                         </p>
                         <p className="text-xs text-amber-600/80 dark:text-amber-500/80 mt-1">
-                          {preview.warning_message}
+                          BRDs that used this document will be removed
                         </p>
                       </div>
                     </div>
@@ -153,7 +154,7 @@ export function DeleteDocumentDialog({
           <Button
             variant="destructive"
             onClick={handleDelete}
-            disabled={loading || deleting}
+            disabled={loading || deleting || !preview}
           >
             {deleting ? (
               <>

@@ -101,7 +101,7 @@ export function BRDListCard({ brd, projectId, onDelete, onUpdate }: BRDListCardP
   }
 
   return (
-    <Card className="hover:shadow-lg transition-all hover:border-primary/50">
+    <Card>
       <CardContent className="p-6">
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-start gap-3 flex-1 min-w-0">

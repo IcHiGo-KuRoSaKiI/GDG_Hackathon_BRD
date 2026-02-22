@@ -14,6 +14,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { getDocumentText } from '@/lib/api/documents'
 import { Document } from '@/lib/api/documents'
+import { getApiError } from '@/lib/utils/formatters'
 
 interface DocumentViewerProps {
   document: Document | null
@@ -42,7 +43,7 @@ export function DocumentViewer({ document, projectId, open, onClose }: DocumentV
       const content = await getDocumentText(projectId, document.doc_id)
       setText(content)
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to load document content')
+      setError(getApiError(err, 'Failed to load document content'))
     } finally {
       setLoading(false)
     }
@@ -75,7 +76,7 @@ export function DocumentViewer({ document, projectId, open, onClose }: DocumentV
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto border rounded-md p-4 bg-muted/30">
+        <div className="flex-1 overflow-y-auto border p-4 bg-muted/30">
           {loading && (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -83,7 +84,7 @@ export function DocumentViewer({ document, projectId, open, onClose }: DocumentV
           )}
 
           {error && (
-            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+            <div className="p-4 text-sm text-destructive bg-destructive/10 border border-destructive/20">
               {error}
             </div>
           )}
