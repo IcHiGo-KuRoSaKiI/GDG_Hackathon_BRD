@@ -62,20 +62,19 @@ export default function HomePage() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border/50 glass">
+      <header className="border-b border-border bg-background">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <FileText className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold gradient-text">BRD Generator</span>
+            <span className="text-sm font-mono uppercase tracking-wider font-bold text-foreground">BRD Generator</span>
           </div>
           <div className="flex items-center space-x-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={toggleTheme}
-              className="rounded-full"
             >
               {theme === 'dark' ? (
                 <Sun className="h-5 w-5" />
@@ -102,15 +101,13 @@ export default function HomePage() {
           custom={0}
           className="text-center max-w-4xl mx-auto"
         >
-          <h1 className="text-5xl md:text-6xl font-bold mb-6">
-            Generate Professional{' '}
-            <span className="text-primary">BRDs from Chaos</span>
-            <br />
-            in Seconds
+          <h1 className="text-4xl md:text-6xl font-bold mb-6 font-mono uppercase tracking-wider">
+            Generate BRDs{' '}
+            <span className="text-primary">from Chaos</span>
           </h1>
-          <p className="text-xl text-muted-foreground mb-8">
-            Upload your documents, let AI extract requirements, and get a
-            comprehensive Business Requirements Document with cited sources.
+          <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Upload documents. AI extracts requirements. Get a comprehensive
+            Business Requirements Document with cited sources.
           </p>
           <div className="flex items-center justify-center space-x-4">
             <Link href="/register">
@@ -130,21 +127,21 @@ export default function HomePage() {
             className="mt-16 flex items-center justify-center space-x-4 text-muted-foreground"
           >
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+              <div className="w-12 h-12 bg-primary/10 border border-primary/30 flex items-center justify-center mb-2">
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <span className="text-sm">Upload</span>
             </div>
             <ArrowRight className="h-5 w-5" />
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+              <div className="w-12 h-12 bg-primary/10 border border-primary/30 flex items-center justify-center mb-2">
                 <Zap className="h-6 w-6 text-primary" />
               </div>
               <span className="text-sm">AI Analyzes</span>
             </div>
             <ArrowRight className="h-5 w-5" />
             <div className="flex flex-col items-center">
-              <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+              <div className="w-12 h-12 bg-primary/10 border border-primary/30 flex items-center justify-center mb-2">
                 <CheckCircle className="h-6 w-6 text-primary" />
               </div>
               <span className="text-sm">BRD Ready</span>
@@ -161,7 +158,7 @@ export default function HomePage() {
         >
           {features.map((feature, index) => (
             <motion.div key={index} variants={staggerItem}>
-              <Card className="border-border/50 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+              <Card className="h-full">
                 <CardContent className="p-6">
                   <feature.icon className="h-12 w-12 text-primary mb-4" />
                   <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
@@ -174,7 +171,7 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-border/50 mt-20">
+      <footer className="border-t border-border mt-20">
         <div className="container mx-auto px-4 py-8 text-center text-muted-foreground">
           <p>© 2026 BRD Generator. Built with AI for the future.</p>
         </div>

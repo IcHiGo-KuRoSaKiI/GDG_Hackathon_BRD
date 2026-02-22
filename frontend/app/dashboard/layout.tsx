@@ -32,13 +32,13 @@ export default function DashboardLayout({
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile header — visible only below md */}
-        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b bg-card shrink-0">
+        <header className="md:hidden flex items-center gap-3 px-4 py-3 border-b shrink-0">
           <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
-            <span className="font-semibold gradient-text">BRD Generator</span>
+            <span className="font-mono uppercase tracking-wider text-sm font-bold">BRD Generator</span>
           </div>
         </header>
 

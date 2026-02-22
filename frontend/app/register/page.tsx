@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { getApiError } from '@/lib/utils/formatters'
 import { motion } from 'framer-motion'
 import { FileText, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -45,20 +46,14 @@ export default function RegisterPage() {
       authStore.login(response.token, response.user)
       router.push('/dashboard')
     } catch (err: any) {
-      const detail = err.response?.data?.detail
-      const message = Array.isArray(detail)
-        ? detail.map((d: any) => d.msg).join(', ')
-        : typeof detail === 'string'
-          ? detail
-          : 'Registration failed. Please try again.'
-      setError(message)
+      setError(getApiError(err, 'Registration failed. Please try again.'))
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -68,11 +63,11 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center space-x-2 mb-4">
             <FileText className="h-8 w-8 text-primary" />
-            <span className="text-2xl font-bold gradient-text">BRD Generator</span>
+            <span className="text-sm font-mono uppercase tracking-wider font-bold text-foreground">BRD Generator</span>
           </Link>
         </div>
 
-        <Card className="border-border/50 shadow-xl">
+        <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl text-center">Create Account</CardTitle>
             <CardDescription className="text-center">
@@ -82,7 +77,7 @@ export default function RegisterPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label htmlFor="username" className="text-sm font-medium">
+                <label htmlFor="username" className="text-xs font-mono uppercase tracking-wider font-medium">
                   Username
                 </label>
                 <Input
@@ -96,7 +91,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium">
+                <label htmlFor="email" className="text-xs font-mono uppercase tracking-wider font-medium">
                   Email
                 </label>
                 <Input
@@ -110,7 +105,7 @@ export default function RegisterPage() {
                 />
               </div>
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium">
+                <label htmlFor="password" className="text-xs font-mono uppercase tracking-wider font-medium">
                   Password
                 </label>
                 <div className="relative">
@@ -137,7 +132,7 @@ export default function RegisterPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <label htmlFor="confirmPassword" className="text-sm font-medium">
+                <label htmlFor="confirmPassword" className="text-xs font-mono uppercase tracking-wider font-medium">
                   Confirm Password
                 </label>
                 <Input
@@ -152,7 +147,7 @@ export default function RegisterPage() {
               </div>
 
               {error && (
-                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+                <div className="p-3 text-sm text-destructive bg-destructive/10 border border-destructive/20">
                   {error}
                 </div>
               )}

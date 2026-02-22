@@ -36,7 +36,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="p-6 border-b border-border">
         <Link href="/dashboard" className="flex items-center space-x-2" onClick={onNavigate}>
           <FileText className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold gradient-text">BRD Generator</span>
+          <span className="font-mono uppercase tracking-wider text-sm font-bold text-foreground">BRD Generator</span>
         </Link>
       </div>
 
@@ -50,13 +50,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
+                'flex items-center space-x-3 px-4 py-3 text-[13px] font-mono uppercase tracking-wider transition-colors',
                 isActive
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent hover:text-accent-foreground'
+                  ? 'text-primary border-l-[3px] border-primary bg-primary/5'
+                  : 'text-muted-foreground hover:text-primary border-l-[3px] border-transparent'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-4 w-4" />
               <span>{item.name}</span>
             </Link>
           )
@@ -67,8 +67,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="p-4 border-t border-border space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-medium text-primary">
+            <div className="w-8 h-8 bg-primary/10 flex items-center justify-center border border-primary/30">
+              <span className="text-xs font-mono font-bold text-primary">
                 {user?.display_name?.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -102,7 +102,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
   return (
     <>
       {/* Desktop sidebar — hidden on mobile */}
-      <aside className="hidden md:flex w-64 h-screen bg-card border-r border-border flex-col shrink-0">
+      <aside className="hidden md:flex w-64 h-screen bg-background border-r border-border flex-col shrink-0">
         <SidebarContent />
       </aside>
 
