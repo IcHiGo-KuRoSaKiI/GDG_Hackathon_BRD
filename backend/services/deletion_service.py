@@ -5,7 +5,7 @@ Handles preview generation and background deletion execution.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, List
 from google.cloud.firestore import Increment
 
@@ -81,6 +81,7 @@ class DeletionService:
 
         # Create preview
         deletion_id = generate_deletion_id()
+        now = datetime.utcnow()
         preview = DeletePreview(
             deletion_id=deletion_id,
             scope=DeleteScope.DOCUMENT,
@@ -92,7 +93,9 @@ class DeletionService:
             chunks_to_delete=chunks_to_delete,
             brds_to_delete=0,  # BRDs remain (citations are denormalized)
             storage_files_to_delete=storage_files_to_delete,
-            created_at=datetime.utcnow().isoformat()
+            estimated_time_seconds=max(5, chunks_to_delete + storage_files_to_delete),
+            created_at=now.isoformat(),
+            expires_at=(now + timedelta(minutes=5)).isoformat()
         )
 
         # Create deletion job in PENDING status
@@ -175,6 +178,7 @@ class DeletionService:
 
         # Create preview
         deletion_id = generate_deletion_id()
+        now = datetime.utcnow()
         preview = DeletePreview(
             deletion_id=deletion_id,
             scope=DeleteScope.PROJECT,
@@ -184,7 +188,9 @@ class DeletionService:
             chunks_to_delete=total_chunks,
             brds_to_delete=brds_to_delete,
             storage_files_to_delete=total_storage_files,
-            created_at=datetime.utcnow().isoformat()
+            estimated_time_seconds=max(5, total_chunks + total_storage_files + brds_to_delete),
+            created_at=now.isoformat(),
+            expires_at=(now + timedelta(minutes=5)).isoformat()
         )
 
         # Create deletion job in PENDING status
@@ -213,7 +219,7 @@ class DeletionService:
         doc_id: Optional[str] = None
     ) -> None:
         """
-        Check for active deletion jobs.
+        Check for active deletion jobs, auto-cancelling expired PENDING ones.
 
         Args:
             project_id: Project ID to check
@@ -227,23 +233,50 @@ class DeletionService:
         # Get all deletion jobs for this project
         jobs = await self.firestore.list_deletion_jobs(project_id=project_id)
 
-        # Check for active jobs (PENDING, QUEUED, or DELETING)
+        now = datetime.utcnow()
         active_statuses = {DeleteStatus.PENDING, DeleteStatus.QUEUED, DeleteStatus.DELETING}
 
         for job in jobs:
-            if job.status in active_statuses:
-                # If checking specific document
-                if doc_id and job.doc_id == doc_id:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Deletion already in progress for this document (job: {job.deletion_id})"
-                    )
-                # If checking project-level (project deletion or any active job)
-                elif not doc_id:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=f"Deletion already in progress for this project (job: {job.deletion_id})"
-                    )
+            if job.status not in active_statuses:
+                continue
+
+            # Auto-expire stale PENDING jobs (preview was never confirmed)
+            if job.status == DeleteStatus.PENDING:
+                expired = False
+                if job.preview and job.preview.expires_at:
+                    try:
+                        expires = datetime.fromisoformat(job.preview.expires_at)
+                        expired = now > expires
+                    except (ValueError, TypeError):
+                        expired = True  # Bad date → treat as expired
+                else:
+                    # No expiry info — check created_at, expire after 5 min
+                    try:
+                        created = datetime.fromisoformat(job.created_at)
+                        expired = (now - created).total_seconds() > 300
+                    except (ValueError, TypeError):
+                        expired = True
+
+                if expired:
+                    logger.info(f"Auto-cancelling expired PENDING job {job.deletion_id}")
+                    await self.firestore.update_deletion_job(job.deletion_id, {
+                        "status": DeleteStatus.CANCELLED.value,
+                        "completed_at": now.isoformat(),
+                        "error_message": "Expired: preview was never confirmed"
+                    })
+                    continue  # Skip — no longer blocks
+
+            # Still active — block the new deletion
+            if doc_id and job.doc_id == doc_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Deletion already in progress for this document (job: {job.deletion_id})"
+                )
+            elif not doc_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Deletion already in progress for this project (job: {job.deletion_id})"
+                )
 
     # ============================================================
     # EXECUTION OPERATIONS

@@ -65,14 +65,18 @@ export async function uploadDocument(projectId: string, file: File): Promise<Doc
   return response.data
 }
 
-export async function deleteDocument(projectId: string, documentId: string): Promise<void> {
-  await apiClient.delete(`/projects/${projectId}/documents/${documentId}`)
-}
-
 export interface DeletePreviewResponse {
-  document: Document
-  brd_ids_to_delete: string[]
-  warning_message: string
+  deletion_id: string
+  scope: string
+  project_id: string
+  project_name: string
+  doc_id?: string
+  filename?: string
+  documents_to_delete: number
+  chunks_to_delete: number
+  brds_to_delete: number
+  storage_files_to_delete: number
+  expires_at: string
 }
 
 export async function previewDocumentDeletion(
@@ -83,6 +87,16 @@ export async function previewDocumentDeletion(
     `/projects/${projectId}/documents/${documentId}/preview`
   )
   return response.data
+}
+
+export async function confirmDocumentDeletion(
+  projectId: string,
+  documentId: string,
+  deletionId: string
+): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}/documents/${documentId}`, {
+    data: { deletion_id: deletionId, confirmation: 'DELETE' },
+  })
 }
 
 export async function getDocumentText(

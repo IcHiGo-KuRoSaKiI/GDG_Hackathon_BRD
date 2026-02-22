@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { chatMessage, ResponseType } from '@/lib/api/brds'
+import { getApiError } from '@/lib/utils/formatters'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -132,7 +133,7 @@ export function useRefineText({
       } catch (err: any) {
         const errorMsg: ChatMessage = {
           role: 'assistant',
-          content: `Error: ${err.response?.data?.detail || err.message || 'Something went wrong'}`,
+          content: `Error: ${getApiError(err, 'Something went wrong')}`,
           timestamp: new Date(),
         }
         setMessages((prev) => [...prev, errorMsg])

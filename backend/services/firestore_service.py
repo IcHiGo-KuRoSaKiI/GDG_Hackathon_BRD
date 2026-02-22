@@ -175,7 +175,7 @@ class FirestoreService:
         Returns:
             List of Chunk models, sorted by chunk_index
         """
-        query = self.client.collection('chunks').where('doc_id', '==', doc_id).order_by('chunk_index')
+        query = self.client.collection('chunks').where('doc_id', '==', doc_id)
         docs = query.stream()
 
         chunks = []
@@ -183,6 +183,7 @@ class FirestoreService:
             data = doc.to_dict()
             chunks.append(Chunk(**data))
 
+        chunks.sort(key=lambda c: c.chunk_index if c.chunk_index is not None else 0)
         return chunks
 
     # ============================================================
@@ -317,13 +318,15 @@ class FirestoreService:
         if status:
             query = query.where('status', '==', status)
 
-        query = query.order_by('created_at', direction='DESCENDING').limit(limit)
-        docs = query.stream()
+        docs = query.limit(limit).stream()
 
         jobs = []
         async for doc in docs:
             data = doc.to_dict()
             jobs.append(DeleteJob.from_dict(data))
+
+        # Sort in Python to avoid needing composite Firestore indexes
+        jobs.sort(key=lambda j: j.created_at or '', reverse=True)
 
         return jobs
 

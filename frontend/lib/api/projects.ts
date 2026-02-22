@@ -31,8 +31,27 @@ export async function createProject(data: CreateProjectRequest): Promise<Project
   return response.data
 }
 
-export async function deleteProject(projectId: string): Promise<void> {
-  await apiClient.delete(`/projects/${projectId}`)
+export interface DeletePreviewResponse {
+  deletion_id: string
+  scope: string
+  project_id: string
+  project_name: string
+  documents_to_delete: number
+  chunks_to_delete: number
+  brds_to_delete: number
+  storage_files_to_delete: number
+  expires_at: string
+}
+
+export async function previewProjectDeletion(projectId: string): Promise<DeletePreviewResponse> {
+  const response = await apiClient.delete(`/projects/${projectId}/preview`)
+  return response.data
+}
+
+export async function confirmProjectDeletion(projectId: string, deletionId: string): Promise<void> {
+  await apiClient.delete(`/projects/${projectId}`, {
+    data: { deletion_id: deletionId, confirmation: 'DELETE' },
+  })
 }
 
 export interface UpdateProjectRequest {

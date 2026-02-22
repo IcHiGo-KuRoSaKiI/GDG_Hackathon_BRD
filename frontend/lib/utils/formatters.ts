@@ -43,3 +43,14 @@ export function truncate(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text
   return text.slice(0, maxLength) + '...'
 }
+
+/**
+ * Extract error message from API error responses.
+ * Handles both string detail and Pydantic validation error arrays.
+ */
+export function getApiError(err: any, fallback = 'An error occurred'): string {
+  const detail = err?.response?.data?.detail
+  if (typeof detail === 'string') return detail
+  if (Array.isArray(detail)) return detail.map((e: any) => e.msg).join(', ')
+  return fallback
+}

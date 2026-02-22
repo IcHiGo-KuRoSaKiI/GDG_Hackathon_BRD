@@ -202,3 +202,15 @@ uploads/
 parsed/
 generated-brds/
 filtered_emails
+
+# ==========================================
+# DATASETS & LARGE FILES
+# ==========================================
+enron_dataset/
+eda_output/
+curated_sets/
+curated_sets.zip
+docs.zip
+BRD-*.md
+*.pdf
+*.csv

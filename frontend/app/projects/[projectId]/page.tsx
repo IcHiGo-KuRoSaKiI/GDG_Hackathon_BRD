@@ -175,8 +175,17 @@ export default function ProjectDetailPage() {
     setDeleteDialogOpen(true)
   }
 
-  const handleDocumentDeleted = async () => {
-    await loadDocuments()
+  const handleDocumentDeleted = () => {
+    // Optimistically remove from list (backend deletes in background)
+    if (documentToDelete) {
+      setDocuments((prev) =>
+        prev.filter((d) => d.doc_id !== documentToDelete.doc_id)
+      )
+      toast({
+        title: 'Document deleted',
+        description: `"${documentToDelete.filename}" has been removed.`,
+      })
+    }
   }
 
   const handleDeleteBRD = (brd: BRD) => {

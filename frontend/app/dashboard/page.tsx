@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { FolderOpen } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
@@ -14,6 +15,7 @@ import { getApiError } from '@/lib/utils/formatters'
 
 export default function DashboardPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -48,7 +50,16 @@ export default function DashboardPage() {
   }
 
   const handleProjectDeleted = () => {
-    loadProjects()
+    // Optimistically remove from list (backend deletes in background)
+    if (projectToDelete) {
+      setProjects((prev) =>
+        prev.filter((p) => p.project_id !== projectToDelete.project_id)
+      )
+      toast({
+        title: 'Project deleted',
+        description: `"${projectToDelete.name}" and all its data are being removed.`,
+      })
+    }
   }
 
   return (
