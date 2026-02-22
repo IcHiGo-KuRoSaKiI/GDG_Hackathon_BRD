@@ -1,12 +1,11 @@
 'use client'
 
-import Link from 'next/link'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAuthStore } from '@/lib/store/authStore'
 import { useThemeStore } from '@/lib/store/themeStore'
-import { ArrowLeft, Moon, Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 
 export default function SettingsPage() {
   const user = useAuthStore((state) => state.user)
@@ -15,12 +14,6 @@ export default function SettingsPage() {
   return (
     <div className="p-4 md:p-8">
       <div className="mb-6 md:mb-8">
-        <Link href="/dashboard">
-          <Button variant="ghost" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Dashboard
-          </Button>
-        </Link>
         <h1 className="text-2xl md:text-3xl font-bold mb-2">Settings</h1>
         <p className="text-muted-foreground">
           Manage your account settings and preferences
