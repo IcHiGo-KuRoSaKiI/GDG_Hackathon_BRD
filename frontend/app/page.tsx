@@ -84,6 +84,9 @@ export default function HomePage() {
                 <Moon className="h-5 w-5" />
               )}
             </Button>
+            <Link href="/architecture">
+              <Button variant="ghost">Architecture</Button>
+            </Link>
             <Link href="/login">
               <Button variant="ghost">Login</Button>
             </Link>

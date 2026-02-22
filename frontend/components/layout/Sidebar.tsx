@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FileText, LayoutDashboard, Settings, LogOut, Moon, Sun, Menu } from 'lucide-react'
+import { FileText, LayoutDashboard, Settings, LogOut, Moon, Sun, Menu, GitBranch } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { useAuthStore } from '@/lib/store/authStore'
@@ -16,6 +16,7 @@ interface SidebarProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Architecture', href: '/architecture', icon: GitBranch },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ]
 
