@@ -60,11 +60,26 @@ const config: Config = {
       animation: {
         'fade-in': 'fadeIn 0.15s ease-out',
         'terminal-blink': 'terminal-blink 1s step-end infinite',
+        'glow-pulse': 'glowPulse 3s ease-in-out infinite',
+        'text-reveal': 'textReveal 0.5s ease-out forwards',
+        'slide-up': 'slideUp 0.5s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
+        },
+        glowPulse: {
+          '0%, 100%': { boxShadow: '0 0 0 0 hsl(var(--primary) / 0)' },
+          '50%': { boxShadow: '0 0 16px 2px hsl(var(--primary) / 0.25)' },
+        },
+        textReveal: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
     },

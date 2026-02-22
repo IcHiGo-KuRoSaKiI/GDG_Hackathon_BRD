@@ -9,6 +9,8 @@ import { ProjectCard } from '@/components/projects/ProjectCard'
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal'
 import { DeleteProjectDialog } from '@/components/projects/DeleteProjectDialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { TextReveal, WordReveal } from '@/components/ui/text-reveal'
+import { TiltCard } from '@/components/ui/tilt-card'
 import { getProjects } from '@/lib/api/projects'
 import { Project } from '@/lib/api/projects'
 import { getApiError } from '@/lib/utils/formatters'
@@ -66,10 +68,8 @@ export default function DashboardPage() {
     <div className="p-4 md:p-8">
       <div className="flex items-center justify-between mb-6 md:mb-8">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold mb-1 font-mono">Your Projects</h1>
-          <p className="text-muted-foreground text-sm">
-            Manage your BRD generation projects
-          </p>
+          <TextReveal text="Your Projects" as="h1" className="text-2xl md:text-3xl font-bold mb-1 font-mono" />
+          <WordReveal text="Upload documents, analyze requirements, generate BRDs" className="text-muted-foreground text-sm" delay={0.3} />
         </div>
         {!loading && !error && projects.length > 0 && (
           <CreateProjectModal onSuccess={loadProjects} />
@@ -108,17 +108,17 @@ export default function DashboardPage() {
         </div>
       ) : projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="bg-primary/10 p-4 mb-5 border border-primary/30">
+          <div className="bg-primary/10 p-4 mb-5 border border-primary/30 glow-animate">
             <FolderOpen className="h-10 w-10 text-primary" />
           </div>
           <h2 className="text-lg font-semibold mb-2 font-mono">No projects yet</h2>
           <p className="text-muted-foreground text-sm mb-6 max-w-sm">
-            Create your first project to start uploading documents and generating BRDs.
+            Create your first project to start uploading documents and let Sybil generate your BRDs.
           </p>
           <CreateProjectModal onSuccess={loadProjects} variant="empty-state" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
           {projects.map((project, index) => (
             <motion.div
               key={project.project_id}
@@ -126,7 +126,9 @@ export default function DashboardPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25, delay: Math.min(index * 0.06, 0.3) }}
             >
-              <ProjectCard project={project} onDelete={handleDeleteProject} />
+              <TiltCard>
+                <ProjectCard project={project} onDelete={handleDeleteProject} />
+              </TiltCard>
             </motion.div>
           ))}
         </div>

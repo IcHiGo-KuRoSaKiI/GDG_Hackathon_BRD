@@ -63,7 +63,7 @@ function MobileNavContent({ onNavigate }: { onNavigate?: () => void }) {
       <div className="p-6 border-b border-border">
         <Link href="/dashboard" className="flex items-center gap-2" onClick={onNavigate}>
           <FileText className="h-6 w-6 text-primary" />
-          <span className="font-mono uppercase tracking-wider text-sm font-bold text-foreground">BRD Generator</span>
+          <span className="font-mono uppercase tracking-wider text-sm font-bold text-foreground">Sybil</span>
         </Link>
       </div>
 
@@ -133,7 +133,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
         <Link href="/dashboard" className="flex items-center gap-2 mr-8">
           <FileText className="h-5 w-5 text-primary" />
           <span className="font-mono uppercase tracking-wider text-[13px] font-bold text-foreground">
-            BRD Generator
+            Sybil
           </span>
         </Link>
 
@@ -177,7 +177,7 @@ export function Sidebar({ mobileOpen, onMobileOpenChange }: SidebarProps) {
         </Button>
         <Link href="/dashboard" className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
-          <span className="font-mono uppercase tracking-wider text-[13px] font-bold">BRD Generator</span>
+          <span className="font-mono uppercase tracking-wider text-[13px] font-bold">Sybil</span>
         </Link>
       </header>
 

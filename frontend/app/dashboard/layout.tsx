@@ -33,7 +33,7 @@ export default function DashboardLayout({
     <div className="flex flex-col h-screen overflow-hidden">
       <Sidebar mobileOpen={sidebarOpen} onMobileOpenChange={setSidebarOpen} />
 
-      <main className="flex-1 overflow-y-auto bg-background">
+      <main className="flex-1 overflow-y-auto bg-background dot-grid">
         {children}
       </main>
     </div>

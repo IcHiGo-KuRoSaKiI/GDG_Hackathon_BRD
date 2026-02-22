@@ -8,8 +8,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono' })
 
 export const metadata: Metadata = {
-  title: 'BRD Generator - AI-Powered Business Requirements',
-  description: 'Generate professional Business Requirements Documents from your documents using AI',
+  title: 'Sybil - AI-Powered Business Requirements',
+  description: 'Transform your documents into structured Business Requirements Documents with AI-driven analysis',
 }
 
 export default function RootLayout({
@@ -19,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans noise-bg`}>
         <ThemeProvider>
           {children}
           <Toaster />

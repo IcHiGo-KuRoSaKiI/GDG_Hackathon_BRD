@@ -9,6 +9,7 @@ import { FileText, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { TextReveal, WordReveal } from '@/components/ui/text-reveal'
 import { login } from '@/lib/api/auth'
 import { useAuthStore } from '@/lib/store/authStore'
 
@@ -39,7 +40,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background dot-grid p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -49,16 +50,14 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center space-x-2 mb-4">
             <FileText className="h-8 w-8 text-primary" />
-            <span className="text-sm font-mono uppercase tracking-wider font-bold text-foreground">BRD Generator</span>
+            <span className="text-sm font-mono uppercase tracking-wider font-bold text-foreground">Sybil</span>
           </Link>
         </div>
 
-        <Card>
+        <Card className="glow-hover">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Welcome Back!</CardTitle>
-            <CardDescription className="text-center">
-              Enter your credentials to access your account
-            </CardDescription>
+            <TextReveal text="Welcome Back" as="h3" className="text-2xl font-semibold leading-none tracking-tight justify-center" />
+            <WordReveal text="Sign in to continue analyzing your documents" className="text-sm text-muted-foreground justify-center" delay={0.4} />
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
