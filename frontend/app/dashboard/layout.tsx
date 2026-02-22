@@ -15,14 +15,19 @@ export default function DashboardLayout({
   const router = useRouter()
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    setHasMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (hasMounted && !isAuthenticated) {
       router.push('/login')
     }
-  }, [isAuthenticated, router])
+  }, [hasMounted, isAuthenticated, router])
 
-  if (!isAuthenticated) {
+  if (!hasMounted || !isAuthenticated) {
     return null
   }
 
