@@ -201,7 +201,7 @@ logs/
 uploads/
 parsed/
 generated-brds/
-filtered_emails
+filtered_emails_old
 
 # ==========================================
 # DATASETS & LARGE FILES
