@@ -4,57 +4,56 @@
 
 @layer base {
   :root {
-    /* Indigo-teal identity — distinctive, not default shadcn blue */
-    --background: 240 20% 98%;
-    --foreground: 240 10% 6%;
+    /* Terminal Noir — Light Mode */
+    --background: 40 7% 95%;
+    --foreground: 0 0% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 6%;
+    --card-foreground: 0 0% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 6%;
-    --primary: 243 75% 59%;
+    --popover-foreground: 0 0% 4%;
+    --primary: 18 100% 59%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 10% 94%;
-    --secondary-foreground: 240 10% 12%;
-    --muted: 240 10% 94%;
-    --muted-foreground: 240 5% 46%;
-    --accent: 240 10% 94%;
-    --accent-foreground: 240 10% 12%;
+    --secondary: 40 7% 92%;
+    --secondary-foreground: 0 0% 4%;
+    --muted: 40 7% 92%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 40 7% 92%;
+    --accent-foreground: 0 0% 4%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
-    --border: 240 10% 90%;
-    --input: 240 10% 90%;
-    --ring: 243 75% 59%;
-    --radius: 0.625rem;
+    --border: 0 0% 83%;
+    --input: 0 0% 83%;
+    --ring: 18 100% 59%;
+    --radius: 0px;
 
-    /* Success / AI accent */
-    --success: 173 58% 39%;
-    --warning: 38 92% 50%;
+    --success: 142 71% 45%;
+    --warning: 48 96% 53%;
   }
 
   .dark {
-    /* Low-saturation, warm-tinted darks — easier on eyes */
-    --background: 230 15% 7%;
-    --foreground: 220 15% 93%;
-    --card: 230 15% 10%;
-    --card-foreground: 220 15% 93%;
-    --popover: 230 15% 10%;
-    --popover-foreground: 220 15% 93%;
-    --primary: 243 70% 68%;
-    --primary-foreground: 230 15% 7%;
-    --secondary: 230 12% 16%;
-    --secondary-foreground: 220 15% 93%;
-    --muted: 230 12% 16%;
-    --muted-foreground: 220 10% 60%;
-    --accent: 230 12% 16%;
-    --accent-foreground: 220 15% 93%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 220 15% 93%;
-    --border: 230 12% 15%;
-    --input: 230 12% 15%;
-    --ring: 243 70% 68%;
+    /* Terminal Noir — Dark Mode (PRIMARY) */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 91%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 91%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 91%;
+    --primary: 18 100% 59%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 11%;
+    --secondary-foreground: 0 0% 91%;
+    --muted: 0 0% 11%;
+    --muted-foreground: 0 0% 45%;
+    --accent: 0 0% 11%;
+    --accent-foreground: 0 0% 91%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 16%;
+    --input: 0 0% 16%;
+    --ring: 18 100% 59%;
 
-    --success: 173 50% 45%;
-    --warning: 38 80% 55%;
+    --success: 142 71% 45%;
+    --warning: 48 96% 53%;
   }
 }
 
@@ -63,15 +62,14 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    @apply bg-background text-foreground font-sans;
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar — sharp, minimal */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -79,61 +77,55 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-muted rounded-full;
+  @apply bg-border;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-muted-foreground/50;
 }
 
-/* Smooth transitions (exclude transform to not interfere with animations) */
+/* Smooth transitions for colors only */
 * {
   transition-property: color, background-color, border-color, outline-color;
   transition-duration: 150ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Glassmorphism tiers */
-.glass {
-  background: hsl(var(--background) / 0.75);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
-  border: 1px solid hsl(var(--border) / 0.5);
+/* Terminal cursor loading animation */
+@keyframes terminal-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
 }
 
-.glass-subtle {
-  background: hsl(var(--background) / 0.85);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid hsl(var(--border) / 0.3);
+.terminal-cursor {
+  display: inline-block;
+  width: 8px;
+  height: 2px;
+  background-color: hsl(var(--primary));
+  animation: terminal-blink 1s step-end infinite;
 }
 
-.glass-heavy {
-  background: hsl(var(--background) / 0.6);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  border: 1px solid hsl(var(--border) / 0.5);
-  box-shadow: 0 8px 32px hsl(var(--background) / 0.15);
+/* Monospace utility classes */
+.font-mono-heading {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
-/* Gradient text */
-.gradient-text {
-  @apply bg-gradient-to-r from-primary to-blue-400 bg-clip-text text-transparent;
+/* Override prose for BRD content */
+.prose {
+  --tw-prose-body: hsl(var(--foreground));
+  --tw-prose-headings: hsl(var(--foreground));
+  --tw-prose-links: hsl(var(--primary));
+  --tw-prose-bold: hsl(var(--foreground));
+  --tw-prose-code: hsl(var(--primary));
+  --tw-prose-quotes: hsl(var(--muted-foreground));
+  --tw-prose-th-borders: hsl(var(--border));
+  --tw-prose-td-borders: hsl(var(--border));
 }
 
-/* Shimmer skeleton animation */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton-shimmer {
-  background: linear-gradient(
-    90deg,
-    hsl(var(--muted)) 25%,
-    hsl(var(--muted-foreground) / 0.08) 50%,
-    hsl(var(--muted)) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+.dark .prose {
+  --tw-prose-invert-body: hsl(var(--foreground));
+  --tw-prose-invert-headings: hsl(var(--foreground));
+  --tw-prose-invert-links: hsl(var(--primary));
 }
