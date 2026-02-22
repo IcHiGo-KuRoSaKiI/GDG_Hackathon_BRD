@@ -740,6 +740,467 @@ function PreprocessingSection() {
   )
 }
 
+// ── Section 4: Backend Architecture ──────────────────────
+
+function BackendArchitectureSection() {
+  return (
+    <section id="backend">
+      <SectionHeader
+        number="04"
+        title="Backend Architecture"
+        subtitle="Clean layered architecture — routes handle HTTP, services own business logic, models enforce schemas. Fully async with fire-and-forget background processing."
+      />
+
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-80px' }}
+        className="space-y-8"
+      >
+        {/* Layered architecture diagram */}
+        <motion.div variants={staggerItem}>
+          <Card className="border-border/50 overflow-hidden">
+            <CardContent className="p-6 md:p-8">
+              <div className="flex flex-col items-center gap-1">
+                {/* Layer 1: Routes */}
+                <div className="w-full max-w-2xl">
+                  <div className="flex flex-col items-center gap-2 mb-2">
+                    <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">HTTP Layer</span>
+                  </div>
+                  <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-4">
+                    {[
+                      { label: '/auth', sub: 'Token' },
+                      { label: '/projects', sub: 'CRUD' },
+                      { label: '/documents', sub: 'Upload' },
+                      { label: '/brds', sub: 'Generate' },
+                      { label: '/deletions', sub: 'Async' },
+                    ].map((r) => (
+                      <div key={r.label} className="flex flex-col items-center gap-0.5 p-2 md:p-2.5 border border-primary/30 bg-primary/5 min-w-[80px] text-center">
+                        <span className="text-[10px] md:text-[11px] font-mono font-medium text-primary">{r.label}</span>
+                        <span className="text-[9px] text-muted-foreground">{r.sub}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <FlowArrow direction="down" />
+
+                {/* Layer 2: Services */}
+                <div className="w-full max-w-3xl">
+                  <div className="flex flex-col items-center gap-2 mb-2">
+                    <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Service Layer — Business Logic</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    {[
+                      { label: 'Document', sub: 'Pipeline orchestration' },
+                      { label: 'BRD Generation', sub: 'Agentic loop' },
+                      { label: 'Text Refinement', sub: 'Unified chat' },
+                      { label: 'Firestore', sub: 'Database CRUD' },
+                      { label: 'Storage', sub: 'Cloud Storage ops' },
+                      { label: 'Gemini', sub: 'AI API wrapper' },
+                      { label: 'Auth', sub: 'JWT + users' },
+                      { label: 'AI Service', sub: 'Utility functions' },
+                      { label: 'Agent', sub: 'Tool executor' },
+                    ].map((s) => (
+                      <div key={s.label} className="flex flex-col items-center gap-0.5 p-2 border border-border bg-card text-center">
+                        <span className="text-[10px] md:text-[11px] font-mono font-medium">{s.label}</span>
+                        <span className="text-[9px] text-muted-foreground">{s.sub}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <FlowArrow direction="down" />
+
+                {/* Layer 3: Models + External */}
+                <div className="w-full max-w-2xl">
+                  <div className="flex flex-col items-center gap-2 mb-2">
+                    <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest">Data &amp; External APIs</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <FlowNode icon={Shield} label="Pydantic Models" sublabel="Type-safe schemas" variant="muted" />
+                    <FlowNode icon={Database} label="Firestore" sublabel="Async client" variant="default" />
+                    <FlowNode icon={Cloud} label="Cloud Storage" sublabel="GCS bucket" variant="default" />
+                    <FlowNode icon={Brain} label="Gemini API" sublabel="google-genai SDK" variant="primary" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Async-first callout */}
+        <motion.div variants={staggerItem}>
+          <Card className="border-primary/20 bg-primary/[0.03]">
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-start gap-3">
+                <Zap className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-mono font-bold mb-2">Async-First Design</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Every I/O operation is async — Firestore <code className="text-primary/80">AsyncClient</code>, Cloud Storage uploads, Gemini API calls.
+                    Heavy processing (document parsing, BRD generation) runs as <code className="text-primary/80">BackgroundTasks</code> — the API returns <code className="text-primary/80">202 Accepted</code> immediately
+                    and the frontend polls for completion. Zero blocking in request handlers.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* API routes table */}
+        <motion.div variants={staggerItem}>
+          <div className="flex items-center gap-2 mb-4">
+            <Server className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-mono uppercase tracking-wider font-bold">API Endpoints</h3>
+            <span className="text-[10px] text-muted-foreground font-mono ml-2">RESTful — /projects/&#123;id&#125;/resource pattern</span>
+          </div>
+
+          <Card className="border-border/50">
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/30">
+                    <th className="text-left p-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Method</th>
+                    <th className="text-left p-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Endpoint</th>
+                    <th className="text-left p-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Purpose</th>
+                    <th className="text-left p-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Pattern</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ['POST', '/auth/token', 'Authenticate user', 'sync'],
+                    ['POST', '/projects', 'Create project', 'sync'],
+                    ['GET', '/projects/{id}', 'Get project details', 'sync'],
+                    ['POST', '/projects/{id}/documents/upload', 'Upload document', 'background'],
+                    ['GET', '/projects/{id}/documents', 'List documents', 'sync'],
+                    ['POST', '/projects/{id}/brds/generate', 'Generate BRD', 'background'],
+                    ['GET', '/projects/{id}/brds', 'List BRDs', 'sync'],
+                    ['POST', '/projects/{id}/brds/{brd_id}/chat', 'Chat / Refine BRD', 'sync'],
+                    ['POST', '/deletions/preview', 'Preview cascade delete', 'sync'],
+                    ['POST', '/deletions/confirm', 'Execute deletion', 'background'],
+                  ].map(([method, path, purpose, pattern], i) => (
+                    <tr key={i} className="border-b border-border/50 last:border-0">
+                      <td className="p-3">
+                        <span className={`font-mono text-[10px] px-1.5 py-0.5 ${method === 'POST' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
+                          {method}
+                        </span>
+                      </td>
+                      <td className="p-3 font-mono text-primary/80">{path}</td>
+                      <td className="p-3 text-muted-foreground">{purpose}</td>
+                      <td className="p-3">
+                        <span className={`text-[9px] font-mono px-1 py-0.5 border ${pattern === 'background' ? 'bg-primary/10 border-primary/20 text-primary' : 'bg-muted border-border text-muted-foreground'}`}>
+                          {pattern}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Expandable details */}
+        <motion.div variants={staggerItem} className="space-y-1">
+          <ExpandableDetail title="Route → Service Delegation">
+            <p><strong className="text-foreground">Routes are thin:</strong> Parse request, validate auth, call service, return response. No business logic.</p>
+            <p><strong className="text-foreground">Services own logic:</strong> DocumentService orchestrates the 5-stage pipeline. BRDGenerationService runs the agentic loop. TextRefinementService handles unified chat.</p>
+            <p><strong className="text-foreground">AgentService is a delegator:</strong> Thin wrapper that calls BRDGenerationService.generate_brd() — keeps legacy REACT methods as fallback.</p>
+          </ExpandableDetail>
+          <ExpandableDetail title="Configuration & Externalized Prompts">
+            <p><strong className="text-foreground">Environment-driven:</strong> All secrets, model names, bucket IDs, CORS origins loaded from environment variables via Pydantic Settings</p>
+            <p><strong className="text-foreground">Prompts in JSON:</strong> All AI prompts live in <code className="text-primary/80">prompts.json</code>, loaded by PromptManager — zero hardcoded prompts in service code</p>
+            <p><strong className="text-foreground">Token tracking:</strong> Every Gemini API call logs input/output token counts for cost monitoring</p>
+          </ExpandableDetail>
+          <ExpandableDetail title="Error Handling & Retry">
+            <p><strong className="text-foreground">Exponential backoff:</strong> Gemini API calls wrapped in configurable retry with jitter</p>
+            <p><strong className="text-foreground">Structured errors:</strong> HTTPException with consistent error codes, logged with full context</p>
+            <p><strong className="text-foreground">Background task safety:</strong> Exceptions in BackgroundTasks are caught and logged — never crash the server</p>
+          </ExpandableDetail>
+        </motion.div>
+      </motion.div>
+    </section>
+  )
+}
+
+// ── Section 5: Document Pipeline ─────────────────────────
+
+function DocumentPipelineSection() {
+  return (
+    <section id="pipeline">
+      <SectionHeader
+        number="05"
+        title="Document Pipeline"
+        subtitle="5-stage async pipeline — upload, store, parse, analyze in parallel, finalize. Transforms raw files into AI-enriched, searchable document records."
+      />
+
+      <motion.div
+        variants={staggerContainer}
+        initial="hidden"
+        whileInView="visible"
+        viewport={{ once: true, margin: '-80px' }}
+        className="space-y-8"
+      >
+        {/* Pipeline stages */}
+        <motion.div variants={staggerItem}>
+          <Card className="border-border/50 overflow-hidden">
+            <CardContent className="p-4 md:p-6">
+              <div className="relative">
+                {/* Stage 1 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 border border-border">STAGE 1</span>
+                  <span className="text-xs font-medium">Create Record</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto font-mono">returns 202 immediately</span>
+                </div>
+                <div className="ml-4 pl-4 border-l-2 border-primary/20 pb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">ID Generation</p>
+                      <p className="text-xs">Generate unique doc_id</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Prefix-based (doc_*)</p>
+                    </div>
+                    <div className="p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">Firestore Write</p>
+                      <p className="text-xs">Create document record</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">status: &ldquo;uploading&rdquo;</p>
+                    </div>
+                    <div className="p-2.5 bg-primary/[0.04] border border-primary/20">
+                      <p className="text-[10px] font-mono text-primary mb-1">BackgroundTask</p>
+                      <p className="text-xs">Remaining stages run async</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Client polls GET for status</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 2 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 border border-primary/30">STAGE 2</span>
+                  <span className="text-xs font-medium">Cloud Storage Upload</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto font-mono">GCS bucket</span>
+                </div>
+                <div className="ml-4 pl-4 border-l-2 border-primary/30 pb-6">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex-1 p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">File Storage</p>
+                      <p className="text-xs">Write raw bytes to Cloud Storage</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Path: projects/&#123;id&#125;/documents/&#123;filename&#125;</p>
+                    </div>
+                    <div className="flex-1 p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">Status Update</p>
+                      <p className="text-xs">Firestore status → &ldquo;processing&rdquo;</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Frontend shows spinner</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 3 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 border border-primary/30">STAGE 3</span>
+                  <span className="text-xs font-medium">Chomper Parse</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto font-mono">36+ formats supported</span>
+                </div>
+                <div className="ml-4 pl-4 border-l-2 border-primary/40 pb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">Text Extraction</p>
+                      <p className="text-xs">PDF, DOCX, PPTX, XLSX, CSV, HTML, TXT</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">Full document text</p>
+                    </div>
+                    <div className="p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">Chunking</p>
+                      <p className="text-xs">Word-based splitting</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">1000 words, 100 overlap</p>
+                    </div>
+                    <div className="p-2.5 bg-muted/30 border border-border">
+                      <p className="text-[10px] font-mono text-muted-foreground mb-1">Storage</p>
+                      <p className="text-xs">Save to Cloud Storage</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">text_path + chunk_path</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 4 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 border border-primary/30">STAGE 4</span>
+                  <span className="text-xs font-medium">Parallel AI Analysis</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto font-mono">asyncio.gather()</span>
+                </div>
+                <div className="ml-4 pl-4 border-l-2 border-primary/50 pb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Task A */}
+                    <div className="p-3 bg-primary/[0.04] border border-primary/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Filter className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-mono font-medium text-primary">Task A — Classification</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">Gemini classifies document type:</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {['requirements_doc', 'meeting_notes', 'email_thread', 'technical_spec', 'proposal', 'report'].map((t) => (
+                          <span key={t} className="text-[9px] font-mono px-1 py-0.5 bg-muted border border-border text-muted-foreground">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Task B */}
+                    <div className="p-3 bg-primary/[0.04] border border-primary/20">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Brain className="h-3.5 w-3.5 text-primary" />
+                        <span className="text-xs font-mono font-medium text-primary">Task B — Metadata Generation</span>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">summary</strong> — concise document overview</p>
+                        <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">tags</strong> — content classification labels</p>
+                        <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">topic_relevance</strong> — &#123;topic: 0.0–1.0&#125; scores</p>
+                        <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">content_indicators</strong> — has_requirements, has_decisions, etc.</p>
+                        <p className="text-[10px] text-muted-foreground"><strong className="text-foreground">key_entities</strong> — stakeholders, features, decisions</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stage 5 */}
+                <div className="flex items-center gap-3 mb-3">
+                  <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 border border-border">STAGE 5</span>
+                  <span className="text-xs font-medium">Finalize</span>
+                  <span className="text-[10px] text-muted-foreground ml-auto font-mono">status → complete</span>
+                </div>
+                <div className="ml-4 pl-4 border-l-2 border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Store all metadata in Firestore → Update document_count on project → Set status to &ldquo;complete&rdquo; (or &ldquo;failed&rdquo; with error message) → Frontend detects change on next poll
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Why this matters callout */}
+        <motion.div variants={staggerItem}>
+          <Card className="border-primary/20 bg-primary/[0.03]">
+            <CardContent className="p-4 md:p-6">
+              <div className="flex items-start gap-3">
+                <Search className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="text-sm font-mono font-bold mb-2">Why This Pipeline Matters</h4>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    The AI metadata generated in Stage 4 is what makes the BRD agent intelligent.
+                    When the agent calls <code className="text-primary/80">list_project_documents()</code>, it sees topic relevance scores and content indicators — not just filenames.
+                    When it calls <code className="text-primary/80">search_documents_by_topic()</code>, the pre-computed topic scores enable instant filtering without re-reading documents.
+                    The pipeline transforms dumb files into searchable, classified, AI-enriched records.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* AI Metadata visualization */}
+        <motion.div variants={staggerItem}>
+          <div className="flex items-center gap-2 mb-4">
+            <Brain className="h-4 w-4 text-primary" />
+            <h3 className="text-sm font-mono uppercase tracking-wider font-bold">AI Metadata Structure</h3>
+            <span className="text-[10px] text-muted-foreground font-mono ml-2">per document — domain-agnostic</span>
+          </div>
+
+          <Card className="border-border/50">
+            <CardContent className="p-4 md:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="p-3 bg-muted/30 border border-border space-y-2">
+                  <p className="text-[10px] font-mono text-primary uppercase">Topic Relevance</p>
+                  <div className="space-y-1">
+                    {[
+                      ['infrastructure', 0.9],
+                      ['security', 0.7],
+                      ['compliance', 0.4],
+                      ['budget', 0.2],
+                    ].map(([topic, score]) => (
+                      <div key={topic as string} className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground font-mono w-20 shrink-0">{topic as string}</span>
+                        <div className="flex-1 h-1.5 bg-muted">
+                          <div className="h-full bg-primary/60" style={{ width: `${(score as number) * 100}%` }} />
+                        </div>
+                        <span className="text-[10px] font-mono text-muted-foreground w-6 text-right">{score as number}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground italic">AI generates topics from content — not predefined</p>
+                </div>
+
+                <div className="p-3 bg-muted/30 border border-border space-y-2">
+                  <p className="text-[10px] font-mono text-primary uppercase">Content Indicators</p>
+                  <div className="space-y-1">
+                    {[
+                      ['has_requirements', true],
+                      ['has_decisions', true],
+                      ['has_timelines', false],
+                      ['has_budget_info', false],
+                      ['has_stakeholder_input', true],
+                    ].map(([indicator, value]) => (
+                      <div key={indicator as string} className="flex items-center gap-2 text-[10px]">
+                        <span className={`font-mono ${value ? 'text-primary' : 'text-muted-foreground/50'}`}>
+                          {value ? '■' : '□'}
+                        </span>
+                        <span className="text-muted-foreground">{(indicator as string).replace(/_/g, ' ')}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-muted-foreground italic">Boolean flags for fast document selection</p>
+                </div>
+
+                <div className="p-3 bg-muted/30 border border-border space-y-2">
+                  <p className="text-[10px] font-mono text-primary uppercase">Key Entities</p>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase mb-1">Stakeholders</p>
+                      <div className="flex flex-wrap gap-1">
+                        {['Product Team', 'Engineering', 'Legal'].map((s) => (
+                          <span key={s} className="text-[9px] font-mono px-1 py-0.5 bg-primary/10 border border-primary/20 text-primary">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase mb-1">Features</p>
+                      <div className="flex flex-wrap gap-1">
+                        {['SSO', 'Audit Logging'].map((s) => (
+                          <span key={s} className="text-[9px] font-mono px-1 py-0.5 bg-muted border border-border text-muted-foreground">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[9px] text-muted-foreground uppercase mb-1">Decisions</p>
+                      <div className="flex flex-wrap gap-1">
+                        {['Use AWS', 'Q3 Launch'].map((s) => (
+                          <span key={s} className="text-[9px] font-mono px-1 py-0.5 bg-muted border border-border text-muted-foreground">{s}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Expandable details */}
+        <motion.div variants={staggerItem} className="space-y-1">
+          <ExpandableDetail title="Why Full Text, Not RAG Chunks?">
+            <p><strong className="text-foreground">No context loss:</strong> The BRD agent reads entire documents via get_full_document_text() — it sees the full picture, not fragments</p>
+            <p><strong className="text-foreground">Chunks still exist:</strong> Used for citation tracking (mapping requirements back to source locations), not for retrieval</p>
+            <p><strong className="text-foreground">Gemini&apos;s 1M context window:</strong> With 65,536 output tokens and massive input context, there&apos;s no need to chunk for input — the model can handle full documents</p>
+          </ExpandableDetail>
+          <ExpandableDetail title="Why Parallel Analysis?">
+            <p><strong className="text-foreground">Classification (Task A)</strong> and <strong className="text-foreground">Metadata (Task B)</strong> are independent Gemini calls — no reason to run them sequentially</p>
+            <p><strong className="text-foreground">asyncio.gather()</strong> runs both concurrently, cutting document processing time nearly in half</p>
+            <p><strong className="text-foreground">Each task has its own prompt template</strong> loaded from prompts.json — optimized independently for its specific output structure</p>
+          </ExpandableDetail>
+        </motion.div>
+      </motion.div>
+    </section>
+  )
+}
+
 // ── Main Page ───────────────────────────────────────────
 
 export default function ArchitecturePage() {
@@ -796,6 +1257,8 @@ export default function ArchitecturePage() {
               { href: '#infrastructure', label: '01 Infrastructure' },
               { href: '#ai-flow', label: '02 AI Agent Flow' },
               { href: '#preprocessing', label: '03 Data Preprocessing' },
+              { href: '#backend', label: '04 Backend Architecture' },
+              { href: '#pipeline', label: '05 Document Pipeline' },
             ].map((link) => (
               <a
                 key={link.href}
@@ -814,6 +1277,8 @@ export default function ArchitecturePage() {
         <InfrastructureSection />
         <AIFlowSection />
         <PreprocessingSection />
+        <BackendArchitectureSection />
+        <DocumentPipelineSection />
       </div>
 
       {/* Footer */}
